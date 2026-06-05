@@ -1,3 +1,4 @@
+SRC += dynamic_lights.c
 VIA_ENABLE = yes
 VIAL_ENABLE = yes
 VIALRGB_ENABLE = yes
