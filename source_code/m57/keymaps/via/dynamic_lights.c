@@ -150,6 +150,34 @@ static const key_color_rule_t key_color_rules[] = {
     { KC_PAST, CLR_GREEN,  L_ALL },
     { KC_PMNS, CLR_RED,    L_ALL },
     { KC_PSLS, CLR_RED,    L_ALL },
+
+    // GAME Keys layer 4 only
+    { KC_Q,         CLR_BLUE,       LAYER_MASK(4) },
+    { KC_W,         CLR_RED,        LAYER_MASK(4) },
+    { KC_E,         CLR_BLUE,       LAYER_MASK(4) },
+    { KC_A,         CLR_RED,        LAYER_MASK(4) },
+    { KC_S,         CLR_RED,        LAYER_MASK(4) },
+    { KC_D,         CLR_RED,        LAYER_MASK(4) },
+    { KC_H,         CLR_GREY,       LAYER_MASK(4) },
+    { KC_R,         CLR_GREY,       LAYER_MASK(4) },
+    { KC_F,         CLR_GREY,       LAYER_MASK(4) },
+    { KC_G,         CLR_GREY,       LAYER_MASK(4) },
+    { KC_B,         CLR_GREY,       LAYER_MASK(4) },
+    { KC_M,         CLR_GREY,       LAYER_MASK(4) },
+    { KC_Y,         CLR_GREY,       LAYER_MASK(4) },
+    { KC_Z,         CLR_ORANGE,     LAYER_MASK(4) },
+    { KC_X,         CLR_ORANGE,     LAYER_MASK(4) },
+    { KC_C,         CLR_ORANGE,     LAYER_MASK(4) },
+    { KC_1,         CLR_GREY,       LAYER_MASK(4) },
+    { KC_2,         CLR_GREY,       LAYER_MASK(4) },
+    { KC_3,         CLR_GREY,       LAYER_MASK(4) },
+    { KC_4,         CLR_GREY,       LAYER_MASK(4) },
+    { KC_5,         CLR_GREY,       LAYER_MASK(4) },
+    { KC_LALT,      CLR_DARKORANGE, LAYER_MASK(4) },
+    { KC_TAB,       CLR_DARKORANGE, LAYER_MASK(4) },
+    { KC_LGUI,      CLR_DARKORANGE, LAYER_MASK(4) },
+    { KC_LSFT,      CLR_DARKORANGE, LAYER_MASK(4) },
+    { KC_LCTL,      CLR_DARKORANGE, LAYER_MASK(4) }
 };
 
 // ---------------------------------------------------------------------------
