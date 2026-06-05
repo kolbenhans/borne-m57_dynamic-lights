@@ -7,6 +7,10 @@
 #define KEY_COLS      7
 #define KEY_LED_COUNT 58
 
+#define STARTUP_DELAY_MS 800
+#define STARTUP_STEP_MS  35
+#define STARTUP_TAIL     7
+
 #define BLINK_CHECK_INTERVAL_MS 100
 #define CACHE_INVALID_COLOR     0xFF
 
@@ -94,6 +98,12 @@ static struct {
     bool          valid;
     uint32_t      check_timer;
 } cache = {0};
+
+static struct {
+    uint32_t delay_timer;
+    uint32_t anim_timer;
+    bool     done;
+} startup = {0};
 
 static void apply_color(uint8_t led, uint8_t color_id) {
     if (led == NO_LED) return;
@@ -247,9 +257,53 @@ static void render_lighting(void) {
     cache_flush();
 }
 
+static void render_startup_comet(void) {
+    if (timer_elapsed32(startup.delay_timer) < STARTUP_DELAY_MS) {
+        return;
+    }
+
+    if (startup.anim_timer == 0) {
+        startup.anim_timer = timer_read32();
+    }
+
+    uint32_t elapsed = timer_elapsed32(startup.anim_timer);
+    uint8_t head = elapsed / STARTUP_STEP_MS;
+
+    if (head > KEY_LED_COUNT + STARTUP_TAIL) {
+        startup.done = true;
+        clear_all();
+        cache.valid = false;
+        return;
+    }
+
+    clear_all();
+
+    for (uint8_t tail = 0; tail < STARTUP_TAIL; tail++) {
+        int16_t pos = (int16_t)head - tail;
+        if (pos < 0 || pos >= KEY_LED_COUNT) continue;
+
+        uint8_t led = (uint8_t)pos;
+
+        uint8_t hue = (uint8_t)(elapsed / 8) + (uint8_t)(pos * 10);
+        uint8_t value = 255 - (uint8_t)((uint16_t)tail * 120 / STARTUP_TAIL);
+
+        RGB rgb = hsv_to_rgb((HSV){ hue, 255, value });
+        rgb_matrix_set_color(led, rgb.r, rgb.g, rgb.b);
+    }
+}
+
+void keyboard_post_init_user(void) {
+    startup.delay_timer = timer_read32();
+}
+
 bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {
     (void)led_min;
     (void)led_max;
+
+    if (!startup.done) {
+        render_startup_comet();
+        return false;
+    }
 
     render_lighting();
     return false;
