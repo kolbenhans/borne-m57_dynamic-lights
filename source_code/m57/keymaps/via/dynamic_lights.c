@@ -3,16 +3,33 @@
 
 #if defined(RGB_MATRIX_ENABLE)
 
+// ---------------------------------------------------------------------------
+// Hardware constants
+// ---------------------------------------------------------------------------
+
 #define KEY_ROWS      10
 #define KEY_COLS      7
 #define KEY_LED_COUNT 58
 
-#define STARTUP_DELAY_MS 800
-#define STARTUP_STEP_MS  35
-#define STARTUP_TAIL     7
+// ---------------------------------------------------------------------------
+// Startup animation
+// ---------------------------------------------------------------------------
+
+#define STARTUP_DELAY_MS         800
+#define STARTUP_STEP_MS           35
+#define STARTUP_SWITCH_STEP_MS    25
+#define STARTUP_TAIL              7
+
+// ---------------------------------------------------------------------------
+// Cache / blink
+// ---------------------------------------------------------------------------
 
 #define BLINK_CHECK_INTERVAL_MS 100
 #define CACHE_INVALID_COLOR     0xFF
+
+// ---------------------------------------------------------------------------
+// Layer mask helpers
+// ---------------------------------------------------------------------------
 
 #define LAYER_ALL     0xFFFFFFFFUL
 #define LAYER_MASK(n) (1UL << (n))
@@ -21,17 +38,34 @@
 #define L(n)          LAYER_MASK(n)
 #define L_RANGE(a, b) (((1UL << ((b) - (a) + 1)) - 1) << (a))
 
+// Alpha Mods on this board. Used as the custom dynamic-lighting mode.
+#define MY_CUSTOM_RGB_MODE 2
+
+// ---------------------------------------------------------------------------
+// Color palette
+// ---------------------------------------------------------------------------
+
 enum color_id {
     CLR_OFF = 0,
     CLR_RED,
+    CLR_LIGHTRED,
     CLR_YELLOW,
+    CLR_PINK,
     CLR_GREEN,
+    CLR_DARKGREEN,
+    CLR_LIGHTGREEN,
+    CLR_LEMONGREEN,
     CLR_BLUE,
+    CLR_LIGHTBLUE,
     CLR_CYAN,
+    CLR_LIGHTCYAN,
+    CLR_PURPLE,
+    CLR_ROSE,
+    CLR_WHITE,
     CLR_ORANGE,
+    CLR_LIGHTORANGE,
     CLR_DARKORANGE,
     CLR_GREY,
-    CLR_WHITE,
     CLR_COUNT
 };
 
@@ -40,17 +74,31 @@ typedef struct {
 } rgb_color_t;
 
 static const rgb_color_t color_palette[] = {
-    [CLR_OFF]        = {   0,   0,   0 },
-    [CLR_RED]        = { 255,   0,   0 },
-    [CLR_YELLOW]     = { 255, 210,   0 },
-    [CLR_GREEN]      = {   0, 255,   0 },
-    [CLR_BLUE]       = {   0,  80, 255 },
-    [CLR_CYAN]       = {   0, 255, 255 },
-    [CLR_ORANGE]     = { 255, 100,   0 },
-    [CLR_DARKORANGE] = {  63,  25,   0 },
-    [CLR_GREY]       = {  24,  24,  24 },
-    [CLR_WHITE]      = { 255, 255, 255 },
+    [CLR_OFF]         = {   0,   0,   0 },
+    [CLR_RED]         = { 255,   0,   0 },
+    [CLR_LIGHTRED]    = { 255, 102, 102 },
+    [CLR_YELLOW]      = { 255, 210,   0 },
+    [CLR_PINK]        = { 255,   0, 128 },
+    [CLR_GREEN]       = {   0, 255,   0 },
+    [CLR_DARKGREEN]   = {   0,  51,  25 },
+    [CLR_LIGHTGREEN]  = {  51, 255, 153 },
+    [CLR_LEMONGREEN]  = { 153, 255,  51 },
+    [CLR_BLUE]        = {   0,  80, 255 },
+    [CLR_LIGHTBLUE]   = { 153, 204, 255 },
+    [CLR_CYAN]        = {   0, 255, 255 },
+    [CLR_LIGHTCYAN]   = { 204, 255, 255 },
+    [CLR_PURPLE]      = {  76,   0, 153 },
+    [CLR_ROSE]        = { 153,   0,  76 },
+    [CLR_WHITE]       = { 255, 255, 255 },
+    [CLR_ORANGE]      = { 255, 100,   0 },
+    [CLR_LIGHTORANGE] = { 255, 204, 153 },
+    [CLR_DARKORANGE]  = {  63,  25,   0 },
+    [CLR_GREY]        = {  24,  24,  24 },
 };
+
+// ---------------------------------------------------------------------------
+// Per-keycode color rules
+// ---------------------------------------------------------------------------
 
 typedef struct {
     uint16_t keycode;
@@ -59,22 +107,54 @@ typedef struct {
 } key_color_rule_t;
 
 static const key_color_rule_t key_color_rules[] = {
-    { KC_ENT,  CLR_CYAN,   L_ALL },
-    { KC_SPC,  CLR_YELLOW, L_ALL },
-    { KC_BSPC, CLR_BLUE,   L_ALL },
-    { KC_DEL,  CLR_BLUE,   L_ALL },
+    // --- Always-visible action keys ---
+    { KC_ENT,    CLR_CYAN,      L_ALL },
+    { KC_SPC,    CLR_YELLOW,    L_ALL },
+    { KC_BSPC,   CLR_PINK,      L_ALL },
+    { KC_DELETE, CLR_BLUE,      L_ALL },
+    { KC_DEL,    CLR_BLUE,      L_ALL },
 
-    { KC_LEFT, CLR_RED,    L_RANGE(1, 4) },
-    { KC_DOWN, CLR_BLUE,   L_RANGE(1, 4) },
-    { KC_UP,   CLR_GREEN,  L_RANGE(1, 4) },
-    { KC_RGHT, CLR_YELLOW, L_RANGE(1, 4) },
+    // --- Arrow keys (layers 1-4) ---
+    { KC_LEFT,   CLR_RED,       L_RANGE(1, 4) },
+    { KC_DOWN,   CLR_BLUE,      L_RANGE(1, 4) },
+    { KC_UP,     CLR_GREEN,     L_RANGE(1, 4) },
+    { KC_RGHT,   CLR_YELLOW,    L_RANGE(1, 4) },
 
-    { KC_LSFT, CLR_ORANGE, L_RANGE(1, 4) },
-    { KC_LCTL, CLR_RED,    L_RANGE(1, 4) },
-    { KC_RCTL, CLR_RED,    L_RANGE(1, 4) },
-    { KC_LALT, CLR_BLUE,   L_RANGE(1, 4) },
-    { KC_TAB,  CLR_CYAN,   L_RANGE(1, 4) },
+    // --- Modifier keys (layers 1-4) ---
+    { KC_LSFT,   CLR_ORANGE,    L_RANGE(1, 4) },
+    { KC_RSFT,   CLR_ORANGE,    L_RANGE(1, 4) },
+    { KC_LCTL,   CLR_PINK,      L_RANGE(1, 4) },
+    { KC_RCTL,   CLR_PINK,      L_RANGE(1, 4) },
+    { KC_LGUI,   CLR_BLUE,      L_RANGE(1, 4) },
+    { KC_RGUI,   CLR_BLUE,      L_RANGE(1, 4) },
+    { KC_LALT,   CLR_PURPLE,    L_RANGE(1, 4) },
+    { KC_RALT,   CLR_PURPLE,    L_RANGE(1, 4) },
+    { KC_TAB,    CLR_LIGHTCYAN, L_RANGE(1, 4) },
+
+    // --- Tab cycling (layer 1 only) ---
+    { C(S(KC_TAB)), CLR_PURPLE, L(1) },
+    { C(KC_TAB),    CLR_ORANGE, L(1) },
+
+    // --- Numpad ---
+    { KC_P0,   CLR_BLUE,   L_ALL },
+    { KC_P1,   CLR_BLUE,   L_ALL },
+    { KC_P2,   CLR_BLUE,   L_ALL },
+    { KC_P3,   CLR_BLUE,   L_ALL },
+    { KC_P4,   CLR_BLUE,   L_ALL },
+    { KC_P5,   CLR_ORANGE, L_ALL },
+    { KC_P6,   CLR_BLUE,   L_ALL },
+    { KC_P7,   CLR_BLUE,   L_ALL },
+    { KC_P8,   CLR_BLUE,   L_ALL },
+    { KC_P9,   CLR_BLUE,   L_ALL },
+    { KC_PPLS, CLR_GREEN,  L_ALL },
+    { KC_PAST, CLR_GREEN,  L_ALL },
+    { KC_PMNS, CLR_RED,    L_ALL },
+    { KC_PSLS, CLR_RED,    L_ALL },
 };
+
+// ---------------------------------------------------------------------------
+// LED mapping
+// ---------------------------------------------------------------------------
 
 static const uint8_t matrix_to_led[KEY_ROWS][KEY_COLS] = {
     { 0,      1,      2,      3,      4,      5,      NO_LED },
@@ -90,6 +170,17 @@ static const uint8_t matrix_to_led[KEY_ROWS][KEY_COLS] = {
     { NO_LED, 55,     56,     57,     NO_LED, NO_LED, NO_LED }
 };
 
+// ---------------------------------------------------------------------------
+// State
+// ---------------------------------------------------------------------------
+
+static struct {
+    uint32_t delay_timer;
+    uint32_t anim_timer;
+    bool     done;
+    bool     from_mode_switch;
+} startup = {0};
+
 static struct {
     uint8_t       color_ids[KEY_LED_COUNT];
     layer_state_t layer_state;
@@ -99,11 +190,21 @@ static struct {
     uint32_t      check_timer;
 } cache = {0};
 
-static struct {
-    uint32_t delay_timer;
-    uint32_t anim_timer;
-    bool     done;
-} startup = {0};
+static uint8_t last_rgb_mode = 0;
+
+// ---------------------------------------------------------------------------
+// Color helpers
+// ---------------------------------------------------------------------------
+
+static void clear_all(void) {
+    for (uint8_t i = 0; i < KEY_LED_COUNT; i++) {
+        rgb_matrix_set_color(i, 0, 0, 0);
+    }
+}
+
+static uint8_t slow_blink(uint8_t color_a, uint8_t color_b) {
+    return (timer_read32() / 800) % 2 ? color_a : color_b;
+}
 
 static void apply_color(uint8_t led, uint8_t color_id) {
     if (led == NO_LED) return;
@@ -124,14 +225,31 @@ static void apply_color(uint8_t led, uint8_t color_id) {
     );
 }
 
-static void clear_all(void) {
-    for (uint8_t i = 0; i < KEY_LED_COUNT; i++) {
-        rgb_matrix_set_color(i, 0, 0, 0);
-    }
-}
+// ---------------------------------------------------------------------------
+// Keycode → color resolution
+// ---------------------------------------------------------------------------
 
-static uint8_t slow_blink(uint8_t color_a, uint8_t color_b) {
-    return (timer_read32() / 800) % 2 ? color_a : color_b;
+static uint8_t color_for_mod_tap(uint8_t base_key) {
+    switch (base_key) {
+        case KC_A:
+        case KC_SCLN:
+            return CLR_YELLOW;
+
+        case KC_S:
+        case KC_L:
+            return CLR_GREEN;
+
+        case KC_D:
+        case KC_K:
+            return CLR_BLUE;
+
+        case KC_F:
+        case KC_J:
+            return CLR_RED;
+
+        default:
+            return CLR_OFF;
+    }
 }
 
 static bool is_layer_switch_keycode(uint16_t keycode) {
@@ -141,6 +259,7 @@ static bool is_layer_switch_keycode(uint16_t keycode) {
         TO(1), TO(2), TO(3), TO(4),
         OSL(1), OSL(2), OSL(3), OSL(4),
         TT(1), TT(2), TT(3), TT(4),
+        TD(0), TD(1), TD(2), TD(3),
     };
 
     for (uint8_t i = 0; i < ARRAY_SIZE(layer_keycodes); i++) {
@@ -153,14 +272,19 @@ static bool is_layer_switch_keycode(uint16_t keycode) {
 static uint8_t color_for_keycode(uint16_t keycode, uint8_t layer) {
     if ((keycode >= QK_MOD_TAP && keycode <= QK_MOD_TAP_MAX) ||
         (keycode >= QK_LAYER_TAP && keycode <= QK_LAYER_TAP_MAX)) {
-        keycode &= 0xFF;
+        uint8_t base = keycode & 0xFF;
+        uint8_t c = color_for_mod_tap(base);
+
+        if (c != CLR_OFF) return c;
+
+        keycode = base;
     }
 
     if (is_layer_switch_keycode(keycode)) return CLR_GREY;
 
-    if (keycode == QK_BOOT)   return slow_blink(CLR_ORANGE, CLR_DARKORANGE);
     if (keycode == EE_CLR)    return slow_blink(CLR_RED,    CLR_DARKORANGE);
-    if (keycode == QK_REBOOT) return slow_blink(CLR_GREEN,  CLR_DARKORANGE);
+    if (keycode == QK_BOOT)   return slow_blink(CLR_ORANGE, CLR_DARKORANGE);
+    if (keycode == QK_REBOOT) return slow_blink(CLR_GREEN,  CLR_DARKGREEN);
 
     if (keycode == KC_CAPS) {
         return host_keyboard_led_state().caps_lock ? CLR_WHITE : CLR_OFF;
@@ -180,6 +304,14 @@ static uint8_t color_for_keycode(uint16_t keycode, uint8_t layer) {
     }
 
     return CLR_OFF;
+}
+
+// ---------------------------------------------------------------------------
+// Cache management
+// ---------------------------------------------------------------------------
+
+static void cache_invalidate(void) {
+    cache.valid = false;
 }
 
 static void cache_rebuild(void) {
@@ -257,22 +389,23 @@ static void render_lighting(void) {
     cache_flush();
 }
 
-static void render_startup_comet(void) {
-    if (timer_elapsed32(startup.delay_timer) < STARTUP_DELAY_MS) {
-        return;
-    }
+// ---------------------------------------------------------------------------
+// Startup comet
+// ---------------------------------------------------------------------------
 
-    if (startup.anim_timer == 0) {
-        startup.anim_timer = timer_read32();
-    }
+static void startup_tick(void) {
+    uint16_t step_ms = startup.from_mode_switch
+        ? STARTUP_SWITCH_STEP_MS
+        : STARTUP_STEP_MS;
 
     uint32_t elapsed = timer_elapsed32(startup.anim_timer);
-    uint8_t head = elapsed / STARTUP_STEP_MS;
+    uint8_t head = elapsed / step_ms;
 
     if (head > KEY_LED_COUNT + STARTUP_TAIL) {
         startup.done = true;
+        startup.from_mode_switch = false;
         clear_all();
-        cache.valid = false;
+        cache_invalidate();
         return;
     }
 
@@ -280,6 +413,7 @@ static void render_startup_comet(void) {
 
     for (uint8_t tail = 0; tail < STARTUP_TAIL; tail++) {
         int16_t pos = (int16_t)head - tail;
+
         if (pos < 0 || pos >= KEY_LED_COUNT) continue;
 
         uint8_t led = (uint8_t)pos;
@@ -292,6 +426,10 @@ static void render_startup_comet(void) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// QMK hooks
+// ---------------------------------------------------------------------------
+
 void keyboard_post_init_user(void) {
     startup.delay_timer = timer_read32();
 }
@@ -300,8 +438,35 @@ bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {
     (void)led_min;
     (void)led_max;
 
+    uint8_t current_mode = rgb_matrix_get_mode();
+
+    if (current_mode != MY_CUSTOM_RGB_MODE) {
+        last_rgb_mode = current_mode;
+        return false;
+    }
+
+    if (last_rgb_mode != MY_CUSTOM_RGB_MODE && last_rgb_mode != 0) {
+        startup = (typeof(startup)){
+            .delay_timer      = timer_read32(),
+            .from_mode_switch = true,
+        };
+        cache_invalidate();
+    }
+
+    last_rgb_mode = current_mode;
+
     if (!startup.done) {
-        render_startup_comet();
+        uint16_t delay = startup.from_mode_switch ? 0 : STARTUP_DELAY_MS;
+
+        if (timer_elapsed32(startup.delay_timer) < delay) {
+            return false;
+        }
+
+        if (startup.anim_timer == 0) {
+            startup.anim_timer = timer_read32();
+        }
+
+        startup_tick();
         return false;
     }
 
