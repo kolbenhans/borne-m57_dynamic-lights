@@ -130,3 +130,14 @@ firmware/working/
 ```
 
 is intended as a recovery build.
+
+## Reference Firmware
+
+The original vendor firmware is preserved in:
+
+firmware/reference/vendor_original.uf2
+
+This file is included for archival and recovery purposes only.
+
+The vendor firmware source was incomplete and required significant cleanup
+before it could be built on modern Vial-QMK versions.
