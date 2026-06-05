@@ -7,25 +7,95 @@ Repository:
 
 Tested with:
 
-- vial-kb/vial-qmk
-- Python 3.11
-- arm-none-eabi-gcc 14.2.0
+* vial-kb/vial-qmk
+* Python 3.11
+* arm-none-eabi-gcc 14.2.0
 
 Verified:
 
-- Builds successfully
-- UF2 generated
-- Vial detected
-- QK_BOOT functional
-- TinyUF2 bootloader preserved
+* Builds successfully
+* UF2 generated
+* Vial detected
+* QK_BOOT functional
+* TinyUF2 bootloader preserved
 
 Verified on hardware:
 
-- Single M57 half successfully flashed
-- Keyboard detected by Vial
-- Matrix test successful
-- QK_BOOT verified
-- TinyUF2 bootloader preserved
+* Both M57 halves successfully flashed
+* Keyboard detected by Vial
+* Matrix test successful
+* QK_BOOT verified
+* TinyUF2 bootloader preserved
+* Dynamic lighting functional
+* Startup comet functional
+
+---
+
+## Python Environment
+
+> [!IMPORTANT]
+> Current builds are verified with **Python 3.11**.
+>
+> Newer Python versions may work, but were not tested and may introduce
+> dependency issues inside the Vial/QMK toolchain.
+
+Verify your Python version:
+
+```bash
+python --version
+```
+
+Expected:
+
+```text
+Python 3.11.x
+```
+
+---
+
+## Create a Virtual Environment
+
+Using a dedicated virtual environment is strongly recommended.
+
+Example:
+
+```bash
+python3.11 -m venv .venv
+
+source .venv/bin/activate
+
+pip install --upgrade pip
+```
+
+Install QMK requirements:
+
+```bash
+pip install -r requirements.txt
+```
+
+Verify the active interpreter:
+
+```bash
+which python
+python --version
+```
+
+The interpreter should point to your virtual environment.
+
+---
+
+## QMK / Vial Requirements
+
+Verified against:
+
+* vial-kb/vial-qmk
+* Python 3.11
+* arm-none-eabi-gcc 14.2.0
+
+This repository is intended to be built inside a working
+`vial-qmk` checkout.
+
+The keyboard sources are linked into the Vial tree via a symbolic link.
 
 ---
 
@@ -91,11 +161,19 @@ Output:
 
 Only flash after verifying that:
 
-- QK_BOOT is present in the keymap
-- The UF2 bootloader is functional
-- A tested firmware backup exists
+* QK_BOOT is present in the keymap
+* The UF2 bootloader is functional
+* A tested firmware backup exists
 
 Flash the generated UF2 file using the keyboard bootloader.
+
+> [!IMPORTANT]
+> The keyboard is a split design.
+>
+> Firmware updates must be flashed to both halves individually.
+>
+> Flash the first half, reconnect it normally, then repeat the process
+> for the second half.
 
 ---
 
@@ -105,8 +183,8 @@ The original vendor source contained an invalid JSON definition and legacy matri
 
 For modern vial-qmk builds:
 
-- `matrix_size` is defined in `info.json`
-- `MATRIX_ROWS` and `MATRIX_COLS` are intentionally removed from `config.h`
+* `matrix_size` is defined in `keyboard.json`
+* `MATRIX_ROWS` and `MATRIX_COLS` are intentionally removed from `config.h`
 
 Reintroducing `MATRIX_ROWS` or `MATRIX_COLS` will break the build on newer QMK versions.
 
@@ -120,53 +198,40 @@ OPT_DEFS += -DBOOTLOADER_TINYUF2
 
 Vial configuration:
 
-- Vial enabled
-- VIA enabled
-- QK_BOOT available from keymap
-- Vial UID must remain unchanged to preserve stored layouts across firmware updates
+* Vial enabled
+* VIA enabled
+* QK_BOOT available from keymap
+* Vial UID must remain unchanged to preserve stored layouts across firmware updates
 
 EEPROM configuration:
 
-- 10 dynamic layers
-- 15 macros
-- 4 KB logical EEPROM via wear leveling
+* 10 dynamic layers
+* 15 macros
+* 4 KB logical EEPROM via wear leveling
 
 If increasing dynamic layer count or EEPROM usage:
 
-- Review `WEAR_LEVELING_BACKING_SIZE`
-- Review `DYNAMIC_KEYMAP_EEPROM_MAX_ADDR`
+* Review `WEAR_LEVELING_BACKING_SIZE`
+* Review `DYNAMIC_KEYMAP_EEPROM_MAX_ADDR`
 
 before flashing.
 
+---
 
--lights
+## Dynamic Lighting
 
+Dynamic lighting features:
 
-k
+* Activated through RGB Matrix → Alpha Mods
+* All other RGB Matrix modes remain available
+* Startup comet animation runs when entering the dynamic lighting mode
+* Dynamic lighting reads key assignments from the local Vial EEPROM of each half
 
-cc 14.2.0
+After changing layouts in Vial:
 
+1. Save the layout as a `.vil` file
+2. Connect the other half directly via USB
+3. Load the saved layout
+4. Reconnect the preferred master half
 
-ully
-
-
-nal
-der preserved
-
-xisting yet
-/github.com/vial-kb/vial-qmk ~/projects/vial-qmk
-l-qmk
-ate --init --recursive --depth 1
-
- to your vial-qmk working directory
-rne-m57-dynamic-lights/source_code/m57 \
-vial-qmk/keyboards/m57
-
--m57-dynamic-lights/source_code/ld/*.ld \
-l-qmk/platforms/chibios/boards/common/ld/
-
-our firmware
-l-qmk
-57 -km via
-lash -kb m57 -km via
-
+This ensures that both halves use identical dynamic lighting mappings.

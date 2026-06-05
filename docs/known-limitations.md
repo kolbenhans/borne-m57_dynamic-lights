@@ -16,3 +16,8 @@ This means that after changing the layout in Vial, only the currently connected 
 6. Reconnect the preferred master half.
 
 After both halves have the same Vial layout stored, dynamic lighting works correctly on both sides.
+
+## Startup comet on right half
+
+The startup comet may run twice on the right half during split initialization.
+This is cosmetic only. Dynamic lighting works normally after startup.
