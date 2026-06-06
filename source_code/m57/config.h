@@ -73,22 +73,24 @@
 #define SERIAL_USART_RX_PAL_MODE 7
 #define SERIAL_USART_TIMEOUT 20
 
-#define MASTER_RIGHT
+#define MASTER_LEFT
 
 #define SPLIT_HAND_PIN C1
 #define SPLIT_HAND_PIN_LOW_IS_LEFT
 
-#define SPLIT_USB_DETECT
-#define SPLIT_USB_TIMEOUT 2000
-#define SPLIT_USB_TIMEOUT_POLL 10
+// Tested 2026-06:
+// No observable issues without USB detect/watchdog.
+// Keeping these settings here for troubleshooting purposes.
+// #define SPLIT_USB_DETECT
+// #define SPLIT_USB_TIMEOUT 2000
+// #define SPLIT_USB_TIMEOUT_POLL 10
+// #define SPLIT_WATCHDOG_ENABLE
+// #define SPLIT_WATCHDOG_TIMEOUT 3000
 
 #define SPLIT_MODS_ENABLE
 #define SPLIT_LAYER_STATE_ENABLE
-#define SPLIT_LED_STATE_ENABLE
+//#define SPLIT_LED_STATE_ENABLE
 #define SPLIT_TRANSPORT_MIRROR
-
-#define SPLIT_WATCHDOG_ENABLE
-#define SPLIT_WATCHDOG_TIMEOUT 3000
 
 // -----------------------------------------------------------------------------
 // RGB matrix / WS2812
