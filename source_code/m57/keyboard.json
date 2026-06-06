@@ -134,6 +134,6 @@
     "led_count": 58,
     "split": true,
     "split_count": [29, 29],
-    "max_brightness": 50
+    "max_brightness": 200 
   }
 }
