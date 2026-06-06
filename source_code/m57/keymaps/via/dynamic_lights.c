@@ -1,5 +1,7 @@
 #include QMK_KEYBOARD_H
 #include "dynamic_lights.h"
+#include "transactions.h"
+#include <string.h>
 
 #if defined(RGB_MATRIX_ENABLE)
 
@@ -26,6 +28,7 @@
 
 #define BLINK_CHECK_INTERVAL_MS 100
 #define CACHE_INVALID_COLOR     0xFF
+#define KEYMAP_CHECK_INTERVAL_MS 1000
 
 // ---------------------------------------------------------------------------
 // Layer mask helpers
@@ -66,6 +69,9 @@ enum color_id {
     CLR_LIGHTORANGE,
     CLR_DARKORANGE,
     CLR_GREY,
+    CLR_BLINK_EEPROM,
+    CLR_BLINK_BOOT,
+    CLR_BLINK_REBOOT,
     CLR_COUNT
 };
 
@@ -218,6 +224,11 @@ static const uint8_t startup_led_order[KEY_LED_COUNT] = {
 // State
 // ---------------------------------------------------------------------------
 
+#define SYNC_HALF_SIZE 29
+
+static uint8_t synced_color_ids[KEY_LED_COUNT];
+static bool synced_color_ids_valid = false;
+
 static struct {
     uint32_t delay_timer;
     uint32_t anim_timer;
@@ -235,6 +246,8 @@ static struct {
 } cache = {0};
 
 static uint8_t last_rgb_mode = 0;
+static uint32_t keymap_check_timer = 0;
+static uint32_t keymap_checksum = 0;
 
 // ---------------------------------------------------------------------------
 // Color helpers
@@ -252,6 +265,23 @@ static uint8_t slow_blink(uint8_t color_a, uint8_t color_b) {
 
 static void apply_color(uint8_t led, uint8_t color_id) {
     if (led == NO_LED) return;
+
+    switch (color_id) {
+        case CLR_BLINK_EEPROM:
+            color_id = slow_blink(CLR_RED, CLR_DARKORANGE);
+            break;
+
+        case CLR_BLINK_BOOT:
+            color_id = slow_blink(CLR_ORANGE, CLR_DARKORANGE);
+            break;
+
+        case CLR_BLINK_REBOOT:
+            color_id = slow_blink(CLR_GREEN, CLR_DARKGREEN);
+            break;
+
+        default:
+            break;
+    }
 
     if (color_id == CLR_OFF || color_id >= CLR_COUNT) {
         rgb_matrix_set_color(led, 0, 0, 0);
@@ -313,6 +343,27 @@ static bool is_layer_switch_keycode(uint16_t keycode) {
     return false;
 }
 
+static void light_sync_a_handler(uint8_t in_buflen, const void *in_data,
+                                 uint8_t out_buflen, void *out_data) {
+    (void)out_buflen;
+    (void)out_data;
+
+    if (in_buflen != SYNC_HALF_SIZE || in_data == NULL) return;
+
+    memcpy(&synced_color_ids[0], in_data, SYNC_HALF_SIZE);
+}
+
+static void light_sync_b_handler(uint8_t in_buflen, const void *in_data,
+                                 uint8_t out_buflen, void *out_data) {
+    (void)out_buflen;
+    (void)out_data;
+
+    if (in_buflen != SYNC_HALF_SIZE || in_data == NULL) return;
+
+    memcpy(&synced_color_ids[SYNC_HALF_SIZE], in_data, SYNC_HALF_SIZE);
+    synced_color_ids_valid = true;
+}
+
 static uint8_t color_for_keycode(uint16_t keycode, uint8_t layer) {
     if ((keycode >= QK_MOD_TAP && keycode <= QK_MOD_TAP_MAX) ||
         (keycode >= QK_LAYER_TAP && keycode <= QK_LAYER_TAP_MAX)) {
@@ -326,9 +377,9 @@ static uint8_t color_for_keycode(uint16_t keycode, uint8_t layer) {
 
     if (is_layer_switch_keycode(keycode)) return CLR_GREY;
 
-    if (keycode == EE_CLR)    return slow_blink(CLR_RED,    CLR_DARKORANGE);
-    if (keycode == QK_BOOT)   return slow_blink(CLR_ORANGE, CLR_DARKORANGE);
-    if (keycode == QK_REBOOT) return slow_blink(CLR_GREEN,  CLR_DARKGREEN);
+    if (keycode == EE_CLR)    return CLR_BLINK_EEPROM;
+    if (keycode == QK_BOOT)   return CLR_BLINK_BOOT;
+    if (keycode == QK_REBOOT) return CLR_BLINK_REBOOT;
 
     if (keycode == KC_CAPS) {
         return host_keyboard_led_state().caps_lock ? CLR_WHITE : CLR_OFF;
@@ -395,6 +446,32 @@ static void cache_flush(void) {
     }
 }
 
+static void synced_cache_flush(void) {
+    if (!synced_color_ids_valid) return;
+
+    for (uint8_t led = 0; led < KEY_LED_COUNT; led++) {
+        apply_color(led, synced_color_ids[led]);
+    }
+}
+
+static void send_light_sync(void) {
+    bool ok_a = transaction_rpc_send(
+        USER_SYNC_LIGHTS_A,
+        SYNC_HALF_SIZE,
+        &cache.color_ids[0]
+    );
+
+    bool ok_b = transaction_rpc_send(
+        USER_SYNC_LIGHTS_B,
+        SYNC_HALF_SIZE,
+        &cache.color_ids[SYNC_HALF_SIZE]
+    );
+
+    (void)ok_a;
+    (void)ok_b;
+}
+
+
 static void cache_tick_blink(void) {
     if (timer_elapsed32(cache.check_timer) < BLINK_CHECK_INTERVAL_MS) return;
 
@@ -417,7 +494,54 @@ static void cache_tick_blink(void) {
     }
 }
 
+static uint32_t calculate_keymap_checksum(void) {
+    uint8_t layer = get_highest_layer(layer_state);
+    uint32_t hash = 2166136261UL; // FNV-1a offset basis
+
+    for (uint8_t row = 0; row < KEY_ROWS; row++) {
+        for (uint8_t col = 0; col < KEY_COLS; col++) {
+            uint8_t led = matrix_to_led[row][col];
+            if (led == NO_LED) continue;
+
+            uint16_t kc = dynamic_keymap_get_keycode(layer, row, col);
+
+            hash ^= (uint8_t)(kc & 0xFF);
+            hash *= 16777619UL;
+
+            hash ^= (uint8_t)(kc >> 8);
+            hash *= 16777619UL;
+        }
+    }
+
+    return hash;
+}
+
+static void check_keymap_changed(void) {
+    if (timer_elapsed32(keymap_check_timer) < KEYMAP_CHECK_INTERVAL_MS) {
+        return;
+    }
+
+    keymap_check_timer = timer_read32();
+
+    uint32_t current_checksum = calculate_keymap_checksum();
+
+    if (keymap_checksum == 0) {
+        keymap_checksum = current_checksum;
+        return;
+    }
+
+    if (keymap_checksum != current_checksum) {
+        keymap_checksum = current_checksum;
+        cache_invalidate();
+    }
+}
+
 static void render_lighting(void) {
+    if (!is_keyboard_master()) {
+        synced_cache_flush();
+        return;
+    }
+
     bool stale =
         !cache.valid ||
         cache.layer_state   != layer_state ||
@@ -426,8 +550,11 @@ static void render_lighting(void) {
 
     if (stale) {
         cache_rebuild();
+        send_light_sync();
         return;
     }
+
+    check_keymap_changed();
 
     cache_tick_blink();
     cache_flush();
@@ -482,6 +609,9 @@ static void startup_tick(uint8_t led_min, uint8_t led_max) {
 
 void keyboard_post_init_user(void) {
     startup.delay_timer = timer_read32();
+
+    transaction_register_rpc(USER_SYNC_LIGHTS_A, light_sync_a_handler);
+    transaction_register_rpc(USER_SYNC_LIGHTS_B, light_sync_b_handler);
 }
 
 bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {

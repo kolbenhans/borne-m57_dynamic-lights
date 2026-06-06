@@ -55,20 +55,21 @@ Normal RGB Matrix effects remain available.
 
 ## Split EEPROM Behavior
 
-Each half stores its own Vial EEPROM data.
+Each half still stores its own Vial EEPROM data.
 
-Dynamic lighting therefore uses the locally stored keymap of the currently connected half.
+However, dynamic lighting now uses a master-driven synchronization mechanism.
 
-After layout changes:
+The master half periodically detects Vial keymap changes and synchronizes the lighting color definitions to the slave half using split RPC communication.
 
-1. Save layout from Vial
-2. Connect the opposite half directly via USB
-3. Load the saved layout
-4. Reconnect preferred master half
+As a result:
 
-This keeps both halves synchronized.
+* Dynamic lighting remains synchronized across both halves.
+* Layout changes made in Vial are reflected on the slave lighting automatically.
+* Manual EEPROM synchronization between halves is no longer required for lighting purposes.
 
----
+Note:
+
+The actual keymap stored in EEPROM remains independent on each half. Only the dynamic lighting state is synchronized.
 
 ## Startup Comet
 

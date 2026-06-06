@@ -225,13 +225,18 @@ Dynamic lighting features:
 * Activated through RGB Matrix → Alpha Mods
 * All other RGB Matrix modes remain available
 * Startup comet animation runs when entering the dynamic lighting mode
-* Dynamic lighting reads key assignments from the local Vial EEPROM of each half
+* Dynamic lighting uses the active Vial keymap as its color source
+* Dynamic lighting state is synchronized from the master half to the slave half
 
-After changing layouts in Vial:
+Lighting synchronization features:
 
-1. Save the layout as a `.vil` file
-2. Connect the other half directly via USB
-3. Load the saved layout
-4. Reconnect the preferred master half
+* Layer changes are synchronized automatically
+* Vial keymap changes are detected automatically
+* Slave lighting updates within approximately one second after layout changes
+* Blink animations are rendered locally on each half to minimize split transport traffic
 
-This ensures that both halves use identical dynamic lighting mappings.
+No manual layout synchronization is required for dynamic lighting.
+
+Note:
+
+Each half still maintains its own Vial EEPROM and keymap storage. The dynamic lighting system synchronizes lighting information only and does not synchronize EEPROM contents.

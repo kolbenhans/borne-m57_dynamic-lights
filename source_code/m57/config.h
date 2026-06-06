@@ -27,7 +27,6 @@
 // Matrix size is defined in keyboard.json.
 // Do not reintroduce MATRIX_ROWS or MATRIX_COLS here.
 // -----------------------------------------------------------------------------
-
 #define MATRIX_ROW_PINS { C8, C7, B2, A6, A5 }
 #define MATRIX_COL_PINS { B13, B14, B15, C6, C9, A8, C12 }
 
@@ -55,7 +54,6 @@
 // -----------------------------------------------------------------------------
 // Split transport
 // -----------------------------------------------------------------------------
-
 #define SERIAL_USART_FULL_DUPLEX
 #define SERIAL_USART_TX_PIN A9
 #define SERIAL_USART_RX_PIN A10
@@ -103,6 +101,7 @@
 #define WS2812_DMA_CHANNEL 5
 
 #define RGB_MATRIX_SLEEP
+#define RGB_MATRIX_TIMEOUT 300000     // turn off keyboard lighting after 5 minutes without usage
 
 #define ENABLE_RGB_MATRIX_ALPHAS_MODS
 #define ENABLE_RGB_MATRIX_GRADIENT_UP_DOWN
