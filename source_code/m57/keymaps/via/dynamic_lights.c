@@ -1,5 +1,7 @@
 #include QMK_KEYBOARD_H
 #include "dynamic_lights.h"
+#include "transactions.h"
+#include <string.h>
 
 #if defined(RGB_MATRIX_ENABLE)
 
@@ -218,6 +220,9 @@ static const uint8_t startup_led_order[KEY_LED_COUNT] = {
 // State
 // ---------------------------------------------------------------------------
 
+static uint8_t synced_color_ids[KEY_LED_COUNT];
+static bool synced_color_ids_valid = false;
+
 static struct {
     uint32_t delay_timer;
     uint32_t anim_timer;
@@ -311,6 +316,19 @@ static bool is_layer_switch_keycode(uint16_t keycode) {
     }
 
     return false;
+}
+
+static void light_sync_slave_handler(uint8_t in_buflen, const void *in_data,
+                                     uint8_t out_buflen, void *out_data) {
+    (void)out_buflen;
+    (void)out_data;
+
+    if (in_buflen != KEY_LED_COUNT || in_data == NULL) {
+        return;
+    }
+
+    memcpy(synced_color_ids, in_data, KEY_LED_COUNT);
+    synced_color_ids_valid = true;
 }
 
 static uint8_t color_for_keycode(uint16_t keycode, uint8_t layer) {
@@ -425,7 +443,10 @@ static void render_lighting(void) {
         cache.led_state_raw != host_keyboard_led_state().raw;
 
     if (stale) {
-        cache_rebuild();
+        if (is_keyboard_master()) {
+            cache_rebuild();
+            transaction_rpc_send(USER_SYNC_LIGHTS, KEY_LED_COUNT, cache.color_ids);
+        }
         return;
     }
 
@@ -482,6 +503,7 @@ static void startup_tick(uint8_t led_min, uint8_t led_max) {
 
 void keyboard_post_init_user(void) {
     startup.delay_timer = timer_read32();
+    transaction_register_rpc(USER_SYNC_LIGHTS, light_sync_slave_handler);
 }
 
 bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {
@@ -519,6 +541,11 @@ bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {
         startup_tick(led_min, led_max);
         return false;
     }
+
+//    if (is_keyboard_master()) {
+//         uint8_t test = 1;
+//        transaction_rpc_send(USER_SYNC_LIGHTS, sizeof(test), &test);
+//    }
 
     render_lighting();
     return false;
