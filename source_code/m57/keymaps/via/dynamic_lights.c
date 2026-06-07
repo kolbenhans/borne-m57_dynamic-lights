@@ -142,8 +142,8 @@ static const key_color_rule_t key_color_rules[] = {
     { KC_PMNS,   CLR_RED,       L_ALL },
     { KC_PSLS,   CLR_RED,       L_ALL },
     // Space & Enter
-    { KC_ENT,    CLR_DARKORANGE,L_ALL },
-    { KC_SPC,    CLR_DARKGREEN, L_ALL },
+    { KC_ENT,    CLR_LIGHTRED,  L_ALL },
+    { KC_SPC,    CLR_PURPLE,    L_ALL },
     { TD(0),     CLR_DARKORANGE,L_ALL },
     // --- Arrow keys (layers 1-4) ---
     { KC_BSPC,   CLR_PINK,      L_RANGE(1, 4) },
