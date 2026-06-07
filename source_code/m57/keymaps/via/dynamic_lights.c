@@ -56,12 +56,11 @@ enum color_id {
     CLR_PINK,
     CLR_GREEN,
     CLR_DARKGREEN,
-    CLR_LIGHTGREEN,
+    CLR_MINT,
     CLR_LEMONGREEN,
     CLR_BLUE,
     CLR_LIGHTBLUE,
     CLR_CYAN,
-    CLR_LIGHTCYAN,
     CLR_PURPLE,
     CLR_ROSE,
     CLR_WHITE,
@@ -69,9 +68,18 @@ enum color_id {
     CLR_LIGHTORANGE,
     CLR_DARKORANGE,
     CLR_GREY,
-    CLR_BLINK_EEPROM,
-    CLR_BLINK_BOOT,
-    CLR_BLINK_REBOOT,
+    CLR_LAYERSW,  // Color for all layer switch keys (MO(x),TO(x),TT(x), ...)
+    CLR_HMR1,     // home-row mod key 1
+    CLR_HMR2,     // home-row mod key 2
+    CLR_HMR3,     // home-row mod key 3
+    CLR_HMR4,     // home-row mod key 4
+    // Pseudo colors.
+    // These are not palette entries.
+    // They are resolved in apply_color() to local blink animations.
+    FX_BLINK_EEPROM,
+    FX_BLINK_BOOT,
+    FX_BLINK_REBOOT,
+
     CLR_COUNT
 };
 
@@ -82,24 +90,28 @@ typedef struct {
 static const rgb_color_t color_palette[] = {
     [CLR_OFF]         = {   0,   0,   0 },
     [CLR_RED]         = { 255,   0,   0 },
-    [CLR_LIGHTRED]    = { 255, 102, 102 },
+    [CLR_LIGHTRED]    = { 255,  10,  10 },
     [CLR_YELLOW]      = { 255, 210,   0 },
     [CLR_PINK]        = { 255,   0, 128 },
     [CLR_GREEN]       = {   0, 255,   0 },
-    [CLR_DARKGREEN]   = {   0,  51,  25 },
-    [CLR_LIGHTGREEN]  = {  51, 255, 153 },
-    [CLR_LEMONGREEN]  = { 153, 255,  51 },
+    [CLR_DARKGREEN]   = {   0,  40,   0 },
+    [CLR_MINT]        = {  51, 255, 153 },
+    [CLR_LEMONGREEN]  = { 174, 255,  0 },
     [CLR_BLUE]        = {   0,  80, 255 },
-    [CLR_LIGHTBLUE]   = { 153, 204, 255 },
+    [CLR_LIGHTBLUE]   = {   0,  90, 255 },
     [CLR_CYAN]        = {   0, 255, 255 },
-    [CLR_LIGHTCYAN]   = { 204, 255, 255 },
     [CLR_PURPLE]      = {  76,   0, 153 },
-    [CLR_ROSE]        = { 153,   0,  76 },
+    [CLR_ROSE]        = { 255,  25, 120 },
     [CLR_WHITE]       = { 255, 255, 255 },
-    [CLR_ORANGE]      = { 255, 100,   0 },
+    [CLR_ORANGE]      = { 255,  60,   0 },
     [CLR_LIGHTORANGE] = { 255, 204, 153 },
-    [CLR_DARKORANGE]  = {  63,  25,   0 },
+    [CLR_DARKORANGE]  = {  64,  12,   0 },
     [CLR_GREY]        = {  24,  24,  24 },
+    [CLR_LAYERSW]     = {  24,  24,  24 },  // Layer Switch keys MO(x), TO(x), TT(x), ...
+    [CLR_HMR1]        = { 255,   0,   0 },  // home-row mod key 1
+    [CLR_HMR2]        = {   0,  80, 255 },  // home-row mod key 2
+    [CLR_HMR3]        = {   0, 255,   0 },  // home-row mod key 3
+    [CLR_HMR4]        = { 255, 210,   0 },  // home-row mod key 4
 };
 
 // ---------------------------------------------------------------------------
@@ -114,76 +126,73 @@ typedef struct {
 
 static const key_color_rule_t key_color_rules[] = {
     // --- Always-visible action keys ---
-    { KC_ENT,    CLR_CYAN,      L_ALL },
-    { KC_SPC,    CLR_YELLOW,    L_ALL },
-    { KC_BSPC,   CLR_PINK,      L_ALL },
-    { KC_DELETE, CLR_BLUE,      L_ALL },
-    { KC_DEL,    CLR_BLUE,      L_ALL },
-
+    // --- Numpad ---
+    { KC_P0,     CLR_BLUE,      L_ALL },
+    { KC_P1,     CLR_BLUE,      L_ALL },
+    { KC_P2,     CLR_BLUE,      L_ALL },
+    { KC_P3,     CLR_BLUE,      L_ALL },
+    { KC_P4,     CLR_BLUE,      L_ALL },
+    { KC_P5,     CLR_ORANGE,    L_ALL },
+    { KC_P6,     CLR_BLUE,      L_ALL },
+    { KC_P7,     CLR_BLUE,      L_ALL },
+    { KC_P8,     CLR_BLUE,      L_ALL },
+    { KC_P9,     CLR_BLUE,      L_ALL },
+    { KC_PPLS,   CLR_GREEN,     L_ALL },
+    { KC_PAST,   CLR_DARKGREEN, L_ALL },
+    { KC_PMNS,   CLR_RED,       L_ALL },
+    { KC_PSLS,   CLR_RED,       L_ALL },
+    // Space & Enter
+    { KC_ENT,    CLR_DARKORANGE,L_ALL },
+    { KC_SPC,    CLR_DARKGREEN, L_ALL },
+    { TD(0),     CLR_DARKORANGE,L_ALL },
     // --- Arrow keys (layers 1-4) ---
+    { KC_BSPC,   CLR_PINK,      L_RANGE(1, 4) },
+    { KC_DELETE, CLR_BLUE,      L_RANGE(1, 4) },
+    { KC_DEL,    CLR_BLUE,      L_RANGE(1, 4) },
     { KC_LEFT,   CLR_RED,       L_RANGE(1, 4) },
     { KC_DOWN,   CLR_BLUE,      L_RANGE(1, 4) },
     { KC_UP,     CLR_GREEN,     L_RANGE(1, 4) },
     { KC_RGHT,   CLR_YELLOW,    L_RANGE(1, 4) },
-
-    // --- Modifier keys (layers 1-4) ---
-    { KC_LSFT,   CLR_ORANGE,    L_RANGE(1, 4) },
+    // --- Modifier keys (layers 1-3/4) ---
+    { KC_LSFT,   CLR_ORANGE,    L_RANGE(1, 3) },
     { KC_RSFT,   CLR_ORANGE,    L_RANGE(1, 4) },
-    { KC_LCTL,   CLR_PINK,      L_RANGE(1, 4) },
+    { KC_LCTL,   CLR_PINK,      L_RANGE(1, 3) },
     { KC_RCTL,   CLR_PINK,      L_RANGE(1, 4) },
-    { KC_LGUI,   CLR_BLUE,      L_RANGE(1, 4) },
+    { KC_LGUI,   CLR_BLUE,      L_RANGE(1, 3) },
     { KC_RGUI,   CLR_BLUE,      L_RANGE(1, 4) },
-    { KC_LALT,   CLR_PURPLE,    L_RANGE(1, 4) },
+    { KC_LALT,   CLR_PURPLE,    L_RANGE(1, 3) },
     { KC_RALT,   CLR_PURPLE,    L_RANGE(1, 4) },
-    { KC_TAB,    CLR_LIGHTCYAN, L_RANGE(1, 4) },
-
+    { KC_TAB,    CLR_LIGHTBLUE, L_RANGE(1, 3) },
     // --- Tab cycling (layer 1 only) ---
     { C(S(KC_TAB)), CLR_PURPLE, L(1) },
     { C(KC_TAB),    CLR_ORANGE, L(1) },
-
-    // --- Numpad ---
-    { KC_P0,   CLR_BLUE,   L_ALL },
-    { KC_P1,   CLR_BLUE,   L_ALL },
-    { KC_P2,   CLR_BLUE,   L_ALL },
-    { KC_P3,   CLR_BLUE,   L_ALL },
-    { KC_P4,   CLR_BLUE,   L_ALL },
-    { KC_P5,   CLR_ORANGE, L_ALL },
-    { KC_P6,   CLR_BLUE,   L_ALL },
-    { KC_P7,   CLR_BLUE,   L_ALL },
-    { KC_P8,   CLR_BLUE,   L_ALL },
-    { KC_P9,   CLR_BLUE,   L_ALL },
-    { KC_PPLS, CLR_GREEN,  L_ALL },
-    { KC_PAST, CLR_GREEN,  L_ALL },
-    { KC_PMNS, CLR_RED,    L_ALL },
-    { KC_PSLS, CLR_RED,    L_ALL },
-
     // GAME Keys layer 4 only
-    { KC_Q,         CLR_BLUE,       LAYER_MASK(4) },
-    { KC_W,         CLR_RED,        LAYER_MASK(4) },
-    { KC_E,         CLR_BLUE,       LAYER_MASK(4) },
-    { KC_A,         CLR_RED,        LAYER_MASK(4) },
-    { KC_S,         CLR_RED,        LAYER_MASK(4) },
-    { KC_D,         CLR_RED,        LAYER_MASK(4) },
-    { KC_H,         CLR_GREY,       LAYER_MASK(4) },
-    { KC_R,         CLR_GREY,       LAYER_MASK(4) },
-    { KC_F,         CLR_GREY,       LAYER_MASK(4) },
-    { KC_G,         CLR_GREY,       LAYER_MASK(4) },
-    { KC_B,         CLR_GREY,       LAYER_MASK(4) },
-    { KC_M,         CLR_GREY,       LAYER_MASK(4) },
-    { KC_Y,         CLR_GREY,       LAYER_MASK(4) },
-    { KC_Z,         CLR_ORANGE,     LAYER_MASK(4) },
-    { KC_X,         CLR_ORANGE,     LAYER_MASK(4) },
-    { KC_C,         CLR_ORANGE,     LAYER_MASK(4) },
-    { KC_1,         CLR_GREY,       LAYER_MASK(4) },
-    { KC_2,         CLR_GREY,       LAYER_MASK(4) },
-    { KC_3,         CLR_GREY,       LAYER_MASK(4) },
-    { KC_4,         CLR_GREY,       LAYER_MASK(4) },
-    { KC_5,         CLR_GREY,       LAYER_MASK(4) },
-    { KC_LALT,      CLR_DARKORANGE, LAYER_MASK(4) },
-    { KC_TAB,       CLR_DARKORANGE, LAYER_MASK(4) },
-    { KC_LGUI,      CLR_DARKORANGE, LAYER_MASK(4) },
-    { KC_LSFT,      CLR_DARKORANGE, LAYER_MASK(4) },
-    { KC_LCTL,      CLR_DARKORANGE, LAYER_MASK(4) }
+    { KC_Q,         CLR_BLUE,       L(4) },
+    { KC_W,         CLR_RED,        L(4) },
+    { KC_E,         CLR_BLUE,       L(4) },
+    { KC_A,         CLR_RED,        L(4) },
+    { KC_S,         CLR_RED,        L(4) },
+    { KC_D,         CLR_RED,        L(4) },
+    { KC_H,         CLR_GREY,       L(4) },
+    { KC_R,         CLR_GREY,       L(4) },
+    { KC_F,         CLR_GREY,       L(4) },
+    { KC_G,         CLR_GREY,       L(4) },
+    { KC_B,         CLR_GREY,       L(4) },
+    { KC_M,         CLR_GREY,       L(4) },
+    { KC_Y,         CLR_GREY,       L(4) },
+    { KC_Z,         CLR_ORANGE,     L(4) },
+    { KC_X,         CLR_ORANGE,     L(4) },
+    { KC_C,         CLR_ORANGE,     L(4) },
+    { KC_1,         CLR_GREY,       L(4) },
+    { KC_2,         CLR_GREY,       L(4) },
+    { KC_3,         CLR_GREY,       L(4) },
+    { KC_4,         CLR_GREY,       L(4) },
+    { KC_5,         CLR_GREY,       L(4) },
+    { KC_LALT,      CLR_DARKORANGE, L(4) },
+    { KC_TAB,       CLR_DARKORANGE, L(4) },
+    { KC_LGUI,      CLR_DARKORANGE, L(4) },
+    { KC_LSFT,      CLR_DARKORANGE, L(4) },
+    { KC_LCTL,      CLR_DARKORANGE, L(4) }
 };
 
 // ---------------------------------------------------------------------------
@@ -267,15 +276,15 @@ static void apply_color(uint8_t led, uint8_t color_id) {
     if (led == NO_LED) return;
 
     switch (color_id) {
-        case CLR_BLINK_EEPROM:
+        case FX_BLINK_EEPROM:
             color_id = slow_blink(CLR_RED, CLR_DARKORANGE);
             break;
 
-        case CLR_BLINK_BOOT:
+        case FX_BLINK_BOOT:
             color_id = slow_blink(CLR_ORANGE, CLR_DARKORANGE);
             break;
 
-        case CLR_BLINK_REBOOT:
+        case FX_BLINK_REBOOT:
             color_id = slow_blink(CLR_GREEN, CLR_DARKGREEN);
             break;
 
@@ -300,26 +309,25 @@ static void apply_color(uint8_t led, uint8_t color_id) {
 }
 
 // ---------------------------------------------------------------------------
-// Keycode → color resolution
+// Keycode → color resolution homerow-MODS and layer keys
 // ---------------------------------------------------------------------------
-
 static uint8_t color_for_mod_tap(uint8_t base_key) {
     switch (base_key) {
         case KC_A:
         case KC_SCLN:
-            return CLR_YELLOW;
+            return CLR_HMR4;
 
         case KC_S:
         case KC_L:
-            return CLR_GREEN;
+            return CLR_HMR3;
 
         case KC_D:
         case KC_K:
-            return CLR_BLUE;
+            return CLR_HMR2;
 
         case KC_F:
         case KC_J:
-            return CLR_RED;
+            return CLR_HMR1;
 
         default:
             return CLR_OFF;
@@ -333,7 +341,6 @@ static bool is_layer_switch_keycode(uint16_t keycode) {
         TO(1), TO(2), TO(3), TO(4),
         OSL(1), OSL(2), OSL(3), OSL(4),
         TT(1), TT(2), TT(3), TT(4),
-        TD(0), TD(1), TD(2), TD(3),
     };
 
     for (uint8_t i = 0; i < ARRAY_SIZE(layer_keycodes); i++) {
@@ -375,11 +382,11 @@ static uint8_t color_for_keycode(uint16_t keycode, uint8_t layer) {
         keycode = base;
     }
 
-    if (is_layer_switch_keycode(keycode)) return CLR_GREY;
+    if (is_layer_switch_keycode(keycode)) return CLR_LAYERSW;
 
-    if (keycode == EE_CLR)    return CLR_BLINK_EEPROM;
-    if (keycode == QK_BOOT)   return CLR_BLINK_BOOT;
-    if (keycode == QK_REBOOT) return CLR_BLINK_REBOOT;
+    if (keycode == EE_CLR)    return FX_BLINK_EEPROM;
+    if (keycode == QK_BOOT)   return FX_BLINK_BOOT;
+    if (keycode == QK_REBOOT) return FX_BLINK_REBOOT;
 
     if (keycode == KC_CAPS) {
         return host_keyboard_led_state().caps_lock ? CLR_WHITE : CLR_OFF;

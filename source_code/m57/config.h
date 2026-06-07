@@ -101,7 +101,7 @@
 #define WS2812_DMA_CHANNEL 5
 
 #define RGB_MATRIX_SLEEP
-#define RGB_MATRIX_TIMEOUT 300000     // turn off keyboard lighting after 5 minutes without usage
+#define RGB_MATRIX_TIMEOUT 600000     // turn off keyboard lighting after 10 minutes without usage
 
 #define ENABLE_RGB_MATRIX_ALPHAS_MODS
 #define ENABLE_RGB_MATRIX_GRADIENT_UP_DOWN
