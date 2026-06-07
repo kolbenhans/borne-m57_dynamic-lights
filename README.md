@@ -12,7 +12,7 @@
 Coming soon.
 
 YouTube:
-- TBD
+[![Dynamic lighting by key assignments with vial-qmk](https://img.youtube.com/vi/RrIkk1Ya_Js/maxresdefault.jpg)](https://youtu.be/RrIkk1Ya_Js)
 
 ## Features
 
