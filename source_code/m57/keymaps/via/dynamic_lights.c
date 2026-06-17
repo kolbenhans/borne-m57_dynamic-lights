@@ -144,7 +144,7 @@ static const key_color_rule_t key_color_rules[] = {
     // Space & Enter
     { KC_ENT,    CLR_LIGHTRED,  L_ALL },
     { KC_SPC,    CLR_PURPLE,    L_ALL },
-    { TD(0),     CLR_DARKORANGE,L_ALL },
+    { TD(3),     CLR_DARKORANGE,L_ALL },
     // --- Arrow keys (layers 1-4) ---
     { KC_BSPC,   CLR_PINK,      L_RANGE(1, 4) },
     { KC_DELETE, CLR_BLUE,      L_RANGE(1, 4) },
