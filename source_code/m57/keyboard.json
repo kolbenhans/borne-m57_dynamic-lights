@@ -17,7 +17,6 @@
     "oled": false,
     "rgblight": false,
     "rgb_matrix": true,
-    "mousekey": true,
     "encoder": true
   },
   "matrix_size": {
