@@ -39,17 +39,21 @@ Implementation:
 
 ```text
 source_code/m57/keymaps/via/dynamic_lights.c
+source_code/m57/keymaps/via/rgb_matrix_user.inc
 ```
+
+Dynamic lighting is implemented as a standalone custom RGB matrix effect (`m57_dynamic_lights`).
+
+It is independent of all built-in RGB matrix effects and does not overlay or conflict with them.
 
 Activation:
 
-```text
-RGB Matrix → Alpha Mods
-```
+* Default mode on startup (set via `RGB_MATRIX_DEFAULT_MODE`)
+* Can be re-entered via `KEYBIND_USER01` (`0x7E01`) which calls `dynamic_lights_on_mode_enter()` and switches to the custom effect
 
 The dynamic lighting system reads key assignments from the active Vial keymap and colors keys according to their function.
 
-Normal RGB Matrix effects remain available.
+All built-in RGB matrix effects remain fully available and can be cycled through independently.
 
 ---
 
@@ -75,15 +79,9 @@ The actual keymap stored in EEPROM remains independent on each half. Only the dy
 
 A startup comet animation is displayed when entering the dynamic lighting mode.
 
-Known issue:
+The animation traverses all LEDs based on their physical coordinates in a snake pattern.
 
-* The right half may execute the startup animation twice during split initialization.
-
-See:
-
-```text
-docs/known-limitations.md
-```
+The master half triggers the animation on the slave half via `USER_DYNAMIC_LIGHTS_STARTUP` split RPC, so both halves animate in sync.
 
 ---
 

@@ -222,9 +222,12 @@ before flashing.
 
 Dynamic lighting features:
 
-* Activated through RGB Matrix → Alpha Mods
-* All other RGB Matrix modes remain available
+* Implemented as a standalone custom RGB matrix effect (`m57_dynamic_lights`)
+* Active by default on startup
+* Re-enterable via `KEYBIND_USER01` (`0x7E01`) in the keymap
+* All other RGB Matrix modes remain fully available
 * Startup comet animation runs when entering the dynamic lighting mode
+* Animation is synchronized across both halves via split RPC
 * Dynamic lighting uses the active Vial keymap as its color source
 * Dynamic lighting state is synchronized from the master half to the slave half
 

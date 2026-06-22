@@ -17,10 +17,8 @@
 // Startup animation
 // ---------------------------------------------------------------------------
 
-#define STARTUP_DELAY_MS         800
-#define STARTUP_STEP_MS           35
-#define STARTUP_SWITCH_STEP_MS    25
-#define STARTUP_TAIL              7
+#define STARTUP_STEP_MS    10
+#define STARTUP_TAIL_WIDTH        84
 
 // ---------------------------------------------------------------------------
 // Cache / blink
@@ -40,9 +38,6 @@
 #define L_ALL         LAYER_ALL
 #define L(n)          LAYER_MASK(n)
 #define L_RANGE(a, b) (((1UL << ((b) - (a) + 1)) - 1) << (a))
-
-// Alpha Mods on this board. Used as the custom dynamic-lighting mode.
-#define MY_CUSTOM_RGB_MODE 2
 
 // ---------------------------------------------------------------------------
 // Color palette
@@ -195,39 +190,6 @@ static const key_color_rule_t key_color_rules[] = {
     { KC_LCTL,      CLR_DARKORANGE, L(4) }
 };
 
-// ---------------------------------------------------------------------------
-// LED mapping
-// ---------------------------------------------------------------------------
-static const uint8_t matrix_to_led[KEY_ROWS][KEY_COLS] = {
-    { 0,      1,      2,      3,      4,      5,      NO_LED },
-    { 6,      7,      8,      9,      10,     11,     12     },
-    { 13,     14,     15,     16,     17,     18,     19     },
-    { 20,     21,     22,     23,     24,     25,     NO_LED },
-    { NO_LED, NO_LED, NO_LED, 26,     27,     28,     NO_LED },
-
-    { NO_LED, 29,     30,     31,     32,     33,     34     },
-    { 35,     36,     37,     38,     39,     40,     41     },
-    { 42,     43,     44,     45,     46,     47,     48     },
-    { NO_LED, 49,     50,     51,     52,     53,     54     },
-    { NO_LED, 55,     56,     57,     NO_LED, NO_LED, NO_LED }
-};
-
-// LED Mapping for startup animation
-static const uint8_t startup_led_order[KEY_LED_COUNT] = {
-    // Left half: top-left to bottom-right snake
-    0, 1, 2, 3, 4, 5,
-    12, 11, 10, 9, 8, 7, 6,
-    13, 14, 15, 16, 17, 18, 19,
-    25, 24, 23, 22, 21, 20,
-    26, 27, 28,
-
-    // Right half: bottom-left to top-right snake
-    55, 56, 57,
-    54, 53, 52, 51, 50, 49,
-    42, 43, 44, 45, 46, 47, 48,
-    41, 40, 39, 38, 37, 36, 35,
-    29, 30, 31, 32, 33, 34
-};
 
 // ---------------------------------------------------------------------------
 // State
@@ -242,7 +204,6 @@ static struct {
     uint32_t delay_timer;
     uint32_t anim_timer;
     bool     done;
-    bool     from_mode_switch;
 } startup = {0};
 
 static struct {
@@ -254,7 +215,6 @@ static struct {
     uint32_t      check_timer;
 } cache = {0};
 
-static uint8_t last_rgb_mode = 0;
 static uint32_t keymap_check_timer = 0;
 static uint32_t keymap_checksum = 0;
 
@@ -427,7 +387,7 @@ static void cache_rebuild(void) {
 
     for (uint8_t row = 0; row < KEY_ROWS; row++) {
         for (uint8_t col = 0; col < KEY_COLS; col++) {
-            uint8_t led = matrix_to_led[row][col];
+            uint8_t led = g_led_config.matrix_co[row][col];
             if (led == NO_LED) continue;
 
             uint16_t kc  = dynamic_keymap_get_keycode(layer, row, col);
@@ -445,18 +405,18 @@ static void cache_rebuild(void) {
     cache.check_timer   = timer_read32();
 }
 
-static void cache_flush(void) {
-    for (uint8_t led = 0; led < KEY_LED_COUNT; led++) {
+static void cache_flush_range(uint8_t led_min, uint8_t led_max) {
+    for (uint8_t led = led_min; led < led_max && led < KEY_LED_COUNT; led++) {
         if (cache.color_ids[led] != CACHE_INVALID_COLOR) {
             apply_color(led, cache.color_ids[led]);
         }
     }
 }
 
-static void synced_cache_flush(void) {
+static void synced_cache_flush_range(uint8_t led_min, uint8_t led_max) {
     if (!synced_color_ids_valid) return;
 
-    for (uint8_t led = 0; led < KEY_LED_COUNT; led++) {
+    for (uint8_t led = led_min; led < led_max && led < KEY_LED_COUNT; led++) {
         apply_color(led, synced_color_ids[led]);
     }
 }
@@ -488,7 +448,7 @@ static void cache_tick_blink(void) {
 
     for (uint8_t row = 0; row < KEY_ROWS; row++) {
         for (uint8_t col = 0; col < KEY_COLS; col++) {
-            uint8_t led = matrix_to_led[row][col];
+            uint8_t led = g_led_config.matrix_co[row][col];
             if (led == NO_LED) continue;
 
             uint16_t kc  = dynamic_keymap_get_keycode(layer, row, col);
@@ -507,7 +467,7 @@ static uint32_t calculate_keymap_checksum(void) {
 
     for (uint8_t row = 0; row < KEY_ROWS; row++) {
         for (uint8_t col = 0; col < KEY_COLS; col++) {
-            uint8_t led = matrix_to_led[row][col];
+            uint8_t led = g_led_config.matrix_co[row][col];
             if (led == NO_LED) continue;
 
             uint16_t kc = dynamic_keymap_get_keycode(layer, row, col);
@@ -543,9 +503,9 @@ static void check_keymap_changed(void) {
     }
 }
 
-static void render_lighting(void) {
+static void render_lighting_range(uint8_t led_min, uint8_t led_max) {
     if (!is_keyboard_master()) {
-        synced_cache_flush();
+        synced_cache_flush_range(led_min, led_max);
         return;
     }
 
@@ -558,13 +518,12 @@ static void render_lighting(void) {
     if (stale) {
         cache_rebuild();
         send_light_sync();
-        return;
+    } else {
+        check_keymap_changed();
+        cache_tick_blink();
     }
 
-    check_keymap_changed();
-
-    cache_tick_blink();
-    cache_flush();
+    cache_flush_range(led_min, led_max);
 }
 
 // ---------------------------------------------------------------------------
@@ -577,37 +536,83 @@ static void clear_range(uint8_t led_min, uint8_t led_max) {
 }
 
 static void startup_tick(uint8_t led_min, uint8_t led_max) {
-    uint16_t step_ms = startup.from_mode_switch
-        ? STARTUP_SWITCH_STEP_MS
-        : STARTUP_STEP_MS;
+    uint16_t step_ms = STARTUP_STEP_MS;
 
     uint32_t elapsed = timer_elapsed32(startup.anim_timer);
-    uint8_t head = elapsed / step_ms;
-
-    if (head > KEY_LED_COUNT + STARTUP_TAIL) {
-        startup.done = true;
-        startup.from_mode_switch = false;
-        cache_invalidate();
-        return;
-    }
+    int16_t head = elapsed / step_ms * 10;
 
     clear_range(led_min, led_max);
 
-    for (uint8_t tail = 0; tail < STARTUP_TAIL; tail++) {
-        int16_t pos = (int16_t)head - tail;
+    uint16_t max_pos = 0;
 
-        if (pos < 0 || pos >= KEY_LED_COUNT) continue;
+    for (uint8_t led = 0; led < KEY_LED_COUNT; led++) {
+        uint8_t x = g_led_config.point[led].x;
+        uint8_t y = g_led_config.point[led].y;
+        uint8_t row = y / 13;
 
-        uint8_t led = startup_led_order[pos];
+        uint16_t local_x = x;
 
-        if (led < led_min || led >= led_max) continue;
+        if (row % 2) {
+            local_x = 220 - x;
+        }
 
-        uint8_t hue = (uint8_t)(elapsed / 8) + (uint8_t)(pos * 10);
-        uint8_t value = 255 - (uint8_t)((uint16_t)tail * 120 / STARTUP_TAIL);
+        uint16_t pos = (row * 240) + local_x;
+
+        if (pos > max_pos) {
+            max_pos = pos;
+        }
+    }
+
+    for (uint8_t led = led_min; led < led_max && led < KEY_LED_COUNT; led++) {
+        uint8_t x = g_led_config.point[led].x;
+        uint8_t y = g_led_config.point[led].y;
+        uint8_t row = y / 13;
+
+        uint16_t local_x = x;
+
+        if (row % 2) {
+            local_x = 220 - x;
+        }
+
+        uint16_t pos = (row * 240) + local_x;
+        int16_t distance = head - pos;
+
+        if (distance < 0 || distance >= STARTUP_TAIL_WIDTH) {
+            continue;
+        }
+
+        uint8_t value = 255 - ((uint16_t)distance * 255 / STARTUP_TAIL_WIDTH);
+        uint8_t hue = (uint8_t)(elapsed / 8) + (uint8_t)(pos / 2);
 
         RGB rgb = hsv_to_rgb((HSV){ hue, 255, value });
         rgb_matrix_set_color(led, rgb.r, rgb.g, rgb.b);
     }
+
+    if (head > max_pos + STARTUP_TAIL_WIDTH) {
+        startup.done = true;
+        cache_invalidate();
+    }
+}
+
+
+static void startup_reset(void) {
+    startup = (typeof(startup)){
+        .delay_timer      = timer_read32(),
+        .anim_timer       = 0,
+        .done             = false,
+    };
+
+    cache_invalidate();
+}
+
+static void startup_sync_handler(uint8_t in_buflen, const void *in_data,
+                                 uint8_t out_buflen, void *out_data) {
+    (void)in_buflen;
+    (void)in_data;
+    (void)out_buflen;
+    (void)out_data;
+
+    startup_reset();
 }
 
 // ---------------------------------------------------------------------------
@@ -619,46 +624,28 @@ void keyboard_post_init_user(void) {
 
     transaction_register_rpc(USER_SYNC_LIGHTS_A, light_sync_a_handler);
     transaction_register_rpc(USER_SYNC_LIGHTS_B, light_sync_b_handler);
+    transaction_register_rpc(USER_DYNAMIC_LIGHTS_STARTUP, startup_sync_handler);
 }
 
-bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {
-    (void)led_min;
-    (void)led_max;
+void dynamic_lights_on_mode_enter(void) {
+    startup_reset();
 
-    uint8_t current_mode = rgb_matrix_get_mode();
-
-    if (current_mode != MY_CUSTOM_RGB_MODE) {
-        last_rgb_mode = current_mode;
-        return false;
+    if (is_keyboard_master()) {
+        transaction_rpc_send(USER_DYNAMIC_LIGHTS_STARTUP, 0, NULL);
     }
+}
 
-    if (last_rgb_mode != MY_CUSTOM_RGB_MODE && last_rgb_mode != 0) {
-        startup = (typeof(startup)){
-            .delay_timer      = timer_read32(),
-            .from_mode_switch = true,
-        };
-        cache_invalidate();
-    }
-
-    last_rgb_mode = current_mode;
-
+void dynamic_lights_render(uint8_t led_min, uint8_t led_max) {
     if (!startup.done) {
-        uint16_t delay = startup.from_mode_switch ? 0 : STARTUP_DELAY_MS;
-
-        if (timer_elapsed32(startup.delay_timer) < delay) {
-            return false;
-        }
-
         if (startup.anim_timer == 0) {
             startup.anim_timer = timer_read32();
         }
 
         startup_tick(led_min, led_max);
-        return false;
+        return;
     }
 
-    render_lighting();
-    return false;
+    render_lighting_range(led_min, led_max);
 }
 
 #endif // RGB_MATRIX_ENABLE
