@@ -1,9 +1,23 @@
-# BORNE M57 Dynamic Lights
+# Build Guide
+
+## Platform
+
+All shell commands in this guide use bash syntax.
+
+| Platform | Recommended environment |
+|---|---|
+| Linux | Standard terminal |
+| macOS | Standard terminal |
+| Windows | [QMK MSYS](https://msys.qmk.fm/) or WSL (Windows Subsystem for Linux) |
+
+In **QMK MSYS** and **WSL**, all commands in this guide work as written.  
+Native Windows Command Prompt and PowerShell alternatives are noted where they differ.
+
+---
 
 ## Verified Setup
 
-Repository:
-`borne-m57_dynamic-lights`
+Repository: `borne-m57_dynamic-lights`
 
 Tested with:
 
@@ -18,16 +32,23 @@ Verified:
 * Vial detected
 * QK_BOOT functional
 * TinyUF2 bootloader preserved
-
-Verified on hardware:
-
 * Both M57 halves successfully flashed
 * Keyboard detected by Vial
 * Matrix test successful
-* QK_BOOT verified
-* TinyUF2 bootloader preserved
 * Dynamic lighting functional
 * Startup comet functional
+
+---
+
+## Directory Layout
+
+This guide uses the following structure. You can choose any base directory — just replace `~/projects` with your preferred path consistently throughout.
+
+```
+~/projects/
+├── vial-qmk/                  ← vial-qmk checkout
+└── borne-m57_dynamic-lights/  ← this repository
+```
 
 ---
 
@@ -47,36 +68,54 @@ python --version
 
 Expected:
 
-```text
+```
 Python 3.11.x
 ```
 
----
-
-## Create a Virtual Environment
+### Create a virtual environment
 
 Using a dedicated virtual environment is strongly recommended.
 
-Example:
+**Linux / macOS / QMK MSYS / WSL:**
 
 ```bash
 python3.11 -m venv .venv
-
 source .venv/bin/activate
-
 pip install --upgrade pip
+pip install -r requirements.txt
 ```
 
-Install QMK requirements:
+**Windows (Command Prompt, without QMK MSYS):**
 
-```bash
+```cmd
+py -3.11 -m venv .venv
+.venv\Scripts\activate.bat
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+**Windows (PowerShell, without QMK MSYS):**
+
+```powershell
+py -3.11 -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
 Verify the active interpreter:
 
+**Linux / macOS / QMK MSYS / WSL:**
+
 ```bash
 which python
+python --version
+```
+
+**Windows:**
+
+```cmd
+where python
 python --version
 ```
 
@@ -84,31 +123,7 @@ The interpreter should point to your virtual environment.
 
 ---
 
-## QMK / Vial Requirements
-
-Verified against:
-
-* vial-kb/vial-qmk
-* Python 3.11
-* arm-none-eabi-gcc 14.2.0
-
-This repository is intended to be built inside a working
-`vial-qmk` checkout.
-
-The keyboard sources are linked into the Vial tree via a symbolic link.
-
----
-
-## Clone this repository
-
-```bash
-git clone https://github.com/<user>/borne-m57_dynamic-lights.git
-cd borne-m57_dynamic-lights
-```
-
----
-
-## Clone vial-qmk
+## Step 1 — Clone vial-qmk
 
 ```bash
 git clone https://github.com/vial-kb/vial-qmk ~/projects/vial-qmk
@@ -118,40 +133,69 @@ git submodule update --init --recursive --depth 1
 
 ---
 
-## Link this repository into your vial-qmk working tree
+## Step 2 — Clone this repository
 
 ```bash
-ln -s /path/to/borne-m57_dynamic-lights/source_code/m57 \
-      ~/projects/vial-qmk/keyboards/m57
+git clone https://github.com/kolbenhans/borne-m57_dynamic-lights.git ~/projects/borne-m57_dynamic-lights
 ```
 
 ---
 
-## Install linker scripts
+## Step 3 — Link the keyboard source into vial-qmk
+
+**Linux / macOS / QMK MSYS / WSL:**
+
+```bash
+ln -s ~/projects/borne-m57_dynamic-lights/source_code/m57 \
+      ~/projects/vial-qmk/keyboards/m57
+```
+
+**Windows (Command Prompt, without QMK MSYS):**
+
+```cmd
+mklink /D "%USERPROFILE%\projects\vial-qmk\keyboards\m57" ^
+          "%USERPROFILE%\projects\borne-m57_dynamic-lights\source_code\m57"
+```
+
+> [!NOTE]
+> `mklink /D` requires administrator privileges on Windows.  
+> Using QMK MSYS avoids this — `ln -s` works there without elevation.
+
+---
+
+## Step 4 — Install linker scripts
 
 > [!IMPORTANT]
 > The custom linker scripts must be copied into the vial-qmk tree before building.
 > Without them the build will fail.
 
+**Linux / macOS / QMK MSYS / WSL:**
+
 ```bash
-cp /path/to/borne-m57_dynamic-lights/source_code/ld/*.ld \
+cp ~/projects/borne-m57_dynamic-lights/source_code/ld/*.ld \
    ~/projects/vial-qmk/platforms/chibios/boards/common/ld/
+```
+
+**Windows (Command Prompt, without QMK MSYS):**
+
+```cmd
+copy "%USERPROFILE%\projects\borne-m57_dynamic-lights\source_code\ld\*.ld" ^
+     "%USERPROFILE%\projects\vial-qmk\platforms\chibios\boards\common\ld\"
 ```
 
 ---
 
-## Build firmware
+## Step 5 — Build firmware
 
 ```bash
 cd ~/projects/vial-qmk
-
 qmk clean
 qmk compile -kb m57 -km via
 ```
 
 Output:
 
-```text
+```
 .build/m57_via.uf2
 ```
 
@@ -165,15 +209,12 @@ Only flash after verifying that:
 * The UF2 bootloader is functional
 * A tested firmware backup exists
 
-Flash the generated UF2 file using the keyboard bootloader.
-
 > [!IMPORTANT]
 > The keyboard is a split design.
 >
-> Firmware updates must be flashed to both halves individually.
+> Firmware updates must be flashed to **both halves individually**.
 >
-> Flash the first half, reconnect it normally, then repeat the process
-> for the second half.
+> Flash the first half, reconnect it normally, then repeat for the second half.
 
 ---
 
