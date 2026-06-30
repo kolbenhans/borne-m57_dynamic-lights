@@ -1,7 +1,14 @@
 #include QMK_KEYBOARD_H
 #include "dynamic_lights.h"
+#include "audio_visualizer.h"
 #include "transactions.h"
 #include <string.h>
+
+#ifdef RGB_MATRIX_EFFECT_VIALRGB_DIRECT
+extern HSV g_direct_mode_colors[RGB_MATRIX_LED_COUNT];
+static bool     direct_mode_active = false;
+static uint32_t direct_mode_timer  = 0;
+#endif
 
 #if defined(RGB_MATRIX_ENABLE)
 
@@ -505,6 +512,19 @@ static void check_keymap_changed(void) {
 
 static void render_lighting_range(uint8_t led_min, uint8_t led_max) {
     if (!is_keyboard_master()) {
+#ifdef RGB_MATRIX_EFFECT_VIALRGB_DIRECT
+        if (direct_mode_active) {
+            if (timer_elapsed32(direct_mode_timer) > 500) {
+                direct_mode_active = false;
+            } else {
+                for (uint8_t i = led_min; i < led_max && i < KEY_LED_COUNT; i++) {
+                    RGB rgb = hsv_to_rgb(g_direct_mode_colors[i]);
+                    rgb_matrix_set_color(i, rgb.r, rgb.g, rgb.b);
+                }
+                return;
+            }
+        }
+#endif
         synced_cache_flush_range(led_min, led_max);
         return;
     }
@@ -619,12 +639,28 @@ static void startup_sync_handler(uint8_t in_buflen, const void *in_data,
 // QMK hooks
 // ---------------------------------------------------------------------------
 
+#ifdef RGB_MATRIX_EFFECT_VIALRGB_DIRECT
+static void rgb_direct_sync_handler(uint8_t in_buflen, const void *in_data,
+                                    uint8_t out_buflen, void *out_data) {
+    (void)out_buflen;
+    (void)out_data;
+    if (in_buflen != SYNC_HALF_SIZE * sizeof(HSV) || in_data == NULL) return;
+    memcpy(&g_direct_mode_colors[SYNC_HALF_SIZE], in_data, in_buflen);
+    direct_mode_active = true;
+    direct_mode_timer  = timer_read32();
+}
+#endif
+
 void keyboard_post_init_user(void) {
     startup.delay_timer = timer_read32();
 
     transaction_register_rpc(USER_SYNC_LIGHTS_A, light_sync_a_handler);
     transaction_register_rpc(USER_SYNC_LIGHTS_B, light_sync_b_handler);
     transaction_register_rpc(USER_DYNAMIC_LIGHTS_STARTUP, startup_sync_handler);
+#ifdef RGB_MATRIX_EFFECT_VIALRGB_DIRECT
+    transaction_register_rpc(USER_SYNC_RGB_DIRECT, rgb_direct_sync_handler);
+#endif
+    audio_visualizer_register_rpc();
 }
 
 void dynamic_lights_on_mode_enter(void) {
@@ -647,5 +683,20 @@ void dynamic_lights_render(uint8_t led_min, uint8_t led_max) {
 
     render_lighting_range(led_min, led_max);
 }
+
+#ifdef RGB_MATRIX_EFFECT_VIALRGB_DIRECT
+void housekeeping_task_user(void) {
+    if (!is_keyboard_master()) return;
+    if (rgb_matrix_get_mode() != RGB_MATRIX_VIALRGB_DIRECT) return;
+
+    static uint32_t last_sync = 0;
+    if (timer_elapsed32(last_sync) < 20) return;
+    last_sync = timer_read32();
+
+    transaction_rpc_send(USER_SYNC_RGB_DIRECT,
+                         SYNC_HALF_SIZE * sizeof(HSV),
+                         &g_direct_mode_colors[SYNC_HALF_SIZE]);
+}
+#endif
 
 #endif // RGB_MATRIX_ENABLE
