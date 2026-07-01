@@ -45,6 +45,12 @@
 #define DIODE_DIRECTION COL2ROW
 #define DEBOUNCE 5
 
+// Bootmagic Lite default (row0/col0) only matches the left half's matrix.
+// Right half's local row0 lands at global row 5 (thisHand offset) — without
+// this, holding any key on power-up can never trigger bootloader on the right.
+#define BOOTMAGIC_ROW_RIGHT 5
+#define BOOTMAGIC_COLUMN_RIGHT 1
+
 // -----------------------------------------------------------------------------
 // Encoder
 // -----------------------------------------------------------------------------

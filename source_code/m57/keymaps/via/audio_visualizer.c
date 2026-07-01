@@ -112,8 +112,16 @@ static void visualizer_sync_handler(uint8_t in_size, const void *in_data,
     visualizer_active             = true;
 }
 
+static void palette_sync_handler(uint8_t in_size, const void *in_data,
+                                 uint8_t out_size, void *out_data) {
+    (void)out_size; (void)out_data;
+    if (in_size != sizeof(visualizer_palette_t) || in_data == NULL) return;
+    memcpy(&palette_uploaded, in_data, sizeof(visualizer_palette_t));
+}
+
 void audio_visualizer_register_rpc(void) {
     transaction_register_rpc(USER_SYNC_VISUALIZER, visualizer_sync_handler);
+    transaction_register_rpc(USER_SYNC_PALETTE,    palette_sync_handler);
 }
 
 void audio_visualizer_sync_to_slave(void) {
@@ -126,9 +134,15 @@ void audio_visualizer_sync_to_slave(void) {
     transaction_rpc_send(USER_SYNC_VISUALIZER, VISUALIZER_SYNC_SIZE, visualizer_sync_data);
 }
 
+void audio_visualizer_sync_palette_to_slave(void) {
+    if (!is_keyboard_master()) return;
+    transaction_rpc_send(USER_SYNC_PALETTE, sizeof(visualizer_palette_t), &palette_uploaded);
+}
+
 #else
-void audio_visualizer_register_rpc(void)  {}
-void audio_visualizer_sync_to_slave(void) {}
+void audio_visualizer_register_rpc(void)         {}
+void audio_visualizer_sync_to_slave(void)        {}
+void audio_visualizer_sync_palette_to_slave(void) {}
 #endif
 
 void raw_hid_receive_kb(uint8_t *data, uint8_t length) {
@@ -164,6 +178,7 @@ void raw_hid_receive_kb(uint8_t *data, uint8_t length) {
             palette_uploaded.underglow_g = g0;
             palette_uploaded.underglow_b = b0;
             palette_uploaded.peak_r = palette_uploaded.peak_g = palette_uploaded.peak_b = 255;
+            audio_visualizer_sync_palette_to_slave();
             break;
         }
     }

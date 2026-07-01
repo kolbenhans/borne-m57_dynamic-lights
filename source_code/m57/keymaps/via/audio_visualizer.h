@@ -20,6 +20,7 @@ uint8_t audio_visualizer_get_peak(uint8_t index);
 void raw_hid_receive_kb(uint8_t *data, uint8_t length);
 void audio_visualizer_register_rpc(void);
 void audio_visualizer_sync_to_slave(void);
+void audio_visualizer_sync_palette_to_slave(void);
 
 void    audio_visualizer_toggle_underglow(void);
 uint8_t audio_visualizer_underglow_enabled(void);
