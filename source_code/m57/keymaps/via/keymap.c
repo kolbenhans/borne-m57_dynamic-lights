@@ -1,5 +1,6 @@
 #include QMK_KEYBOARD_H
 #include "dynamic_lights.h"
+#include "audio_visualizer.h"
 
 const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
     /*
@@ -58,6 +59,9 @@ const uint16_t PROGMEM encoder_map[][NUM_ENCODERS][2] = {
 #endif
 
 #define KEYBIND_USER01 0x7E01
+#define KEYBIND_USER02 0x7E02
+#define KEYBIND_USER03 0x7E03
+#define KEYBIND_USER04 0x7E04
 
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {
     switch (keycode) {
@@ -65,6 +69,24 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
             if (record->event.pressed) {
                 dynamic_lights_on_mode_enter();
                 rgb_matrix_mode_noeeprom(RGB_MATRIX_CUSTOM_m57_dynamic_lights);
+            }
+            return false;
+
+        case KEYBIND_USER02:
+            if (record->event.pressed) {
+                rgb_matrix_mode_noeeprom(RGB_MATRIX_CUSTOM_m57_audio_visualizer);
+            }
+            return false;
+
+        case KEYBIND_USER03:
+            if (record->event.pressed) {
+                audio_visualizer_next_mode();
+            }
+            return false;
+
+        case KEYBIND_USER04:
+            if (record->event.pressed) {
+                audio_visualizer_next_render_mode();
             }
             return false;
     }

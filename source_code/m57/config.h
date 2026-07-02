@@ -45,6 +45,12 @@
 #define DIODE_DIRECTION COL2ROW
 #define DEBOUNCE 5
 
+// Bootmagic Lite default (row0/col0) only matches the left half's matrix.
+// Right half's local row0 lands at global row 5 (thisHand offset) — without
+// this, holding any key on power-up can never trigger bootloader on the right.
+#define BOOTMAGIC_ROW_RIGHT 5
+#define BOOTMAGIC_COLUMN_RIGHT 1
+
 // -----------------------------------------------------------------------------
 // Encoder
 // -----------------------------------------------------------------------------
@@ -101,7 +107,7 @@
 #define WS2812_DMA_CHANNEL 5
 
 #define RGB_MATRIX_SLEEP
-#define RGB_MATRIX_TIMEOUT 600000     // turn off keyboard lighting after 10 minutes without usage
+#define RGB_MATRIX_TIMEOUT 14400000   // turn off keyboard lighting after 4 hours without usage
 
 #define ENABLE_RGB_MATRIX_ALPHAS_MODS
 #define ENABLE_RGB_MATRIX_GRADIENT_UP_DOWN
