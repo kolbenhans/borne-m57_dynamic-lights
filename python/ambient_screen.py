@@ -20,12 +20,12 @@ PALETTE_SIZE = 5
 # ponytail: grim scale 0.05 → ~100×56px at 1080p, fast enough for ambient
 CAPTURE_SCALE = 0.05
 
-def capture_tiny(scale=CAPTURE_SCALE):
-    result = subprocess.run(
-        ["grim", "-s", str(scale), "-"],
-        capture_output=True,
-        check=True,
-    )
+def capture_tiny(scale=CAPTURE_SCALE, output=None):
+    cmd = ["grim", "-s", str(scale)]
+    if output:
+        cmd += ["-o", output]
+    cmd += ["-"]
+    result = subprocess.run(cmd, capture_output=True, check=True)
     return Image.open(BytesIO(result.stdout)).convert("RGB")
 
 def sample_zones(img):

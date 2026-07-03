@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import os, sys, subprocess, threading, time
+import os, sys, subprocess, threading, time, json
 sys.path.insert(0, '/usr/lib/python3.14/site-packages')
 sys.path.insert(1, os.path.dirname(os.path.abspath(__file__)))
 
@@ -54,6 +54,14 @@ def _get_default_monitor():
         if line.startswith('Default Sink:'):
             return line.split(':', 1)[1].strip() + '.monitor'
     return None
+
+def _list_monitors():
+    """Return list of (name, label) for all Hyprland outputs."""
+    try:
+        result = subprocess.run(['hyprctl', 'monitors', '-j'], capture_output=True, text=True, check=True)
+        return [(m['name'], f"{m['name']} ({m['width']}×{m['height']})") for m in json.loads(result.stdout)]
+    except Exception:
+        return []
 
 def _list_audio_sources():
     """Return list of (name, description) for all PulseAudio/PipeWire sources."""
@@ -191,9 +199,10 @@ class WPWatchWorker(QThread):
 class AmbientWorker(QThread):
     palette_ready = pyqtSignal(list)
 
-    def __init__(self):
+    def __init__(self, output=None):
         super().__init__()
         self._running = False
+        self._output  = output
 
     def stop(self):
         self._running = False
@@ -204,7 +213,7 @@ class AmbientWorker(QThread):
         while self._running:
             t0 = time.monotonic()
             try:
-                img = capture_tiny(scale=0.15)
+                img = capture_tiny(scale=0.15, output=self._output)
                 pal = pick_palette(sample_zones(img))
                 if last is None or palette_distance(last, pal) >= 8.0:
                     last = pal.copy()
@@ -239,6 +248,7 @@ class MainWindow(QMainWindow):
         self._build_ui()
         self._refresh_kb()
         self._refresh_audio()
+        self._refresh_monitors()
 
     def _build_ui(self):
         central = QWidget()
@@ -341,6 +351,18 @@ class MainWindow(QMainWindow):
             src_row.addWidget(btn)
         root.addLayout(src_row)
 
+        # ── Monitor selector (for Ambient) ──────────────────────────────────
+        mon_row = QHBoxLayout()
+        mon_row.addWidget(QLabel('Monitor (Ambient)'))
+        self.monitor_combo = QComboBox()
+        self.monitor_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        mon_row.addWidget(self.monitor_combo)
+        mon_refresh_btn = QPushButton('↺')
+        mon_refresh_btn.setFixedWidth(32)
+        mon_refresh_btn.clicked.connect(self._refresh_monitors)
+        mon_row.addWidget(mon_refresh_btn)
+        root.addLayout(mon_row)
+
         line2 = QFrame()
         line2.setFrameShape(QFrame.Shape.HLine)
         line2.setFrameShadow(QFrame.Shadow.Sunken)
@@ -414,6 +436,15 @@ class MainWindow(QMainWindow):
             self.kb_connect_btn.setText('Error')
             print(f'connect error: {e}')
 
+    def _refresh_monitors(self):
+        monitors = _list_monitors()
+        self.monitor_combo.blockSignals(True)
+        self.monitor_combo.clear()
+        self.monitor_combo.addItem('All monitors', userData=None)
+        for name, label in monitors:
+            self.monitor_combo.addItem(label, userData=name)
+        self.monitor_combo.blockSignals(False)
+
     def _refresh_audio(self):
         sources = _list_audio_sources()   # [(name, desc), ...]
         default = _get_default_monitor()
@@ -486,7 +517,8 @@ class MainWindow(QMainWindow):
         if checked:
             if self.btn_wpwatch.isChecked():
                 self.btn_wpwatch.setChecked(False)
-            self.ambient_worker = AmbientWorker()
+            output = self.monitor_combo.currentData()
+            self.ambient_worker = AmbientWorker(output=output)
             self.ambient_worker.palette_ready.connect(self._apply_palette)
             self.ambient_worker.start()
         else:
