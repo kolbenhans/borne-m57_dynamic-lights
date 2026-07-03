@@ -1,7 +1,10 @@
 import hid
+import colorsys
 
 VID, PID = 0x6401, 0x45D4
 USAGE_PAGE, USAGE = 0xFF60, 0x61
+LED_COUNT   = 58
+LEDS_PER_PKT = 9
 
 # VIA command IDs
 _VIA_LIGHTING_SET = 0x07
@@ -11,7 +14,11 @@ _VIA_LIGHTING_GET = 0x08
 _GET_INFO      = 0x40
 _GET_MODE      = 0x41
 _SET_MODE      = 0x41
-_GET_SUPPORTED = 0x42
+_FASTSET       = 0x42
+
+def _rgb_to_qhsv(r, g, b):
+    h, s, v = colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)
+    return int(h * 255), int(s * 255), int(v * 255)
 
 # VialRGB standard effect IDs
 EFFECT_OFF                = 0x0000
@@ -36,10 +43,24 @@ EFFECT_HUE_WAVE           = 0x001C
 
 
 class M57:
+    @staticmethod
+    def _open(path):
+        if hasattr(hid, 'Device'):
+            return hid.Device(path=path)
+        dev = hid.device()
+        dev.open_path(path)
+        return dev
+
     def __init__(self):
-        for info in hid.enumerate(VID, PID):
+        candidates = hid.enumerate(VID, PID)
+        for info in candidates:
             if info['usage_page'] == USAGE_PAGE and info['usage'] == USAGE:
-                self.dev = hid.Device(path=info['path'])
+                self.dev = self._open(info['path'])
+                return
+        # hidapi on Linux reports usage_page=0; fall back to interface 1 (VIA raw HID)
+        for info in candidates:
+            if info.get('interface_number') == 1:
+                self.dev = self._open(info['path'])
                 return
         raise RuntimeError("m57 not found — check USB and udev rules")
 
@@ -65,6 +86,29 @@ class M57:
         self._wr([_VIA_LIGHTING_SET, _SET_MODE,
                   effect_id & 0xFF, (effect_id >> 8) & 0xFF,
                   speed, hue, sat, val])
+
+    def activate_direct(self):
+        """Switch to VialRGB direct mode (effect ID 1)."""
+        self.set_mode(EFFECT_DIRECT)
+
+    def activate_viz_frame(self):
+        """Switch firmware to m57_viz_frame effect via Raw HID 0x02/0xA3."""
+        pkt = bytearray(33)
+        pkt[1], pkt[2] = 0x02, 0xA3
+        self.dev.write(bytes(pkt))
+
+    def send_frame(self, rgb):
+        """Send list of LED_COUNT (r,g,b) tuples via 0x42 fastset."""
+        for start in range(0, LED_COUNT, LEDS_PER_PKT):
+            chunk = rgb[start:start + LEDS_PER_PKT]
+            pkt = bytearray(33)
+            pkt[1], pkt[2] = _VIA_LIGHTING_SET, _FASTSET
+            pkt[3], pkt[4] = start & 0xFF, (start >> 8) & 0xFF
+            pkt[5] = len(chunk)
+            for i, (r, g, b) in enumerate(chunk):
+                h, s, v = _rgb_to_qhsv(r, g, b)
+                pkt[6 + i*3], pkt[7 + i*3], pkt[8 + i*3] = h, s, v
+            self.dev.write(bytes(pkt))
 
     def close(self):
         self.dev.close()

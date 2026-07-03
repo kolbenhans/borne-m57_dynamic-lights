@@ -687,7 +687,9 @@ void dynamic_lights_render(uint8_t led_min, uint8_t led_max) {
 #ifdef RGB_MATRIX_EFFECT_VIALRGB_DIRECT
 void housekeeping_task_user(void) {
     if (!is_keyboard_master()) return;
-    if (rgb_matrix_get_mode() != RGB_MATRIX_VIALRGB_DIRECT) return;
+    uint8_t mode = rgb_matrix_get_mode();
+    if (mode != RGB_MATRIX_VIALRGB_DIRECT &&
+        mode != RGB_MATRIX_CUSTOM_m57_viz_frame) return;
 
     static uint32_t last_sync = 0;
     if (timer_elapsed32(last_sync) < 20) return;
@@ -696,6 +698,35 @@ void housekeeping_task_user(void) {
     transaction_rpc_send(USER_SYNC_RGB_DIRECT,
                          SYNC_HALF_SIZE * sizeof(HSV),
                          &g_direct_mode_colors[SYNC_HALF_SIZE]);
+
+    // RGB_MATRIX_SPLIT caps led_max at 29 on master, so effects never return false
+    // and rgb_task_state never reaches FLUSHING -> ws2812_flush() never called.
+    // Only needed for VialRGB direct mode; m57_viz_frame goes through normal pipeline.
+    if (mode == RGB_MATRIX_VIALRGB_DIRECT) {
+        rgb_matrix_update_pwm_buffers();
+    }
+}
+
+bool rgb_matrix_indicators_user(void) {
+    if (is_keyboard_master()) {
+        if (rgb_matrix_get_mode() == RGB_MATRIX_VIALRGB_DIRECT) {
+            for (uint8_t i = 0; i < SYNC_HALF_SIZE; i++) {
+                RGB rgb = hsv_to_rgb(g_direct_mode_colors[i]);
+                rgb_matrix_set_color(i, rgb.r, rgb.g, rgb.b);
+            }
+        }
+        return false;
+    }
+    if (!direct_mode_active) return false;
+    if (timer_elapsed32(direct_mode_timer) > 500) {
+        direct_mode_active = false;
+        return false;
+    }
+    for (uint8_t i = SYNC_HALF_SIZE; i < RGB_MATRIX_LED_COUNT; i++) {
+        RGB rgb = hsv_to_rgb(g_direct_mode_colors[i]);
+        rgb_matrix_set_color(i, rgb.r, rgb.g, rgb.b);
+    }
+    return false;
 }
 #endif
 

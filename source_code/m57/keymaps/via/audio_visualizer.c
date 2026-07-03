@@ -151,6 +151,10 @@ void raw_hid_receive_kb(uint8_t *data, uint8_t length) {
     static uint32_t sync_timer = 0;
 
     switch (data[1]) {
+        case 0xA3:
+            rgb_matrix_mode_noeeprom(RGB_MATRIX_CUSTOM_m57_viz_frame);
+            break;
+
         case 0xA1: {
             if (length < 26) break;
             for (uint8_t i = 0; i < VISUALIZER_BAND_COUNT; i++) {

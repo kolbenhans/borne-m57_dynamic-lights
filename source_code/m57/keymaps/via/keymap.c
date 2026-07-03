@@ -62,6 +62,7 @@ const uint16_t PROGMEM encoder_map[][NUM_ENCODERS][2] = {
 #define KEYBIND_USER02 0x7E02
 #define KEYBIND_USER03 0x7E03
 #define KEYBIND_USER04 0x7E04
+#define KEYBIND_USER05 0x7E05
 
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {
     switch (keycode) {
@@ -87,6 +88,12 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
         case KEYBIND_USER04:
             if (record->event.pressed) {
                 audio_visualizer_next_render_mode();
+            }
+            return false;
+
+        case KEYBIND_USER05:
+            if (record->event.pressed) {
+                rgb_matrix_mode_noeeprom(RGB_MATRIX_CUSTOM_m57_viz_frame);
             }
             return false;
     }
