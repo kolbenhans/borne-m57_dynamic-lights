@@ -134,6 +134,19 @@ class M57:
         pkt[1], pkt[2] = 0x02, 0xA5
         self.dev.write(bytes(pkt))
 
+    def send_palette(self, palette):
+        """Upload 5-color palette to fw_visualizer (0x02/0xA2).
+        palette: list of 5 (r,g,b), index 0=low (level 0), 4=high (level 4).
+        Firmware reads data[3..5]=high, data[9..11]=mid, data[12..14]=low
+        and interpolates levels 1 and 3."""
+        pkt = bytearray(33)
+        pkt[1], pkt[2] = 0x02, 0xA2
+        lo, mid, hi = palette[0], palette[2], palette[4]
+        pkt[4],  pkt[5],  pkt[6]  = hi[0],  hi[1],  hi[2]
+        pkt[10], pkt[11], pkt[12] = mid[0], mid[1], mid[2]
+        pkt[13], pkt[14], pkt[15] = lo[0],  lo[1],  lo[2]
+        self.dev.write(bytes(pkt))
+
     def send_frame(self, rgb):
         """Send list of LED_COUNT (r,g,b) tuples via 0x42 fastset."""
         for start in range(0, LED_COUNT, LEDS_PER_PKT):

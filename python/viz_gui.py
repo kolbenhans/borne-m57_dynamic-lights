@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import os, sys, subprocess, threading
+import os, sys, subprocess, threading, time
 sys.path.insert(0, '/usr/lib/python3.14/site-packages')
 sys.path.insert(1, os.path.dirname(os.path.abspath(__file__)))
 
@@ -12,6 +12,13 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QColor
 from m57_hid import M57
+from send_palette_from_image import (
+    image_to_pixels, filter_pixels, extract_palette,
+    get_current_wallpaper, load_image, CAELESTIA_WALLPAPER_PATH,
+)
+from send_palette_from_screen import (
+    grab_active_monitor, extract_dominant_palette, palette_distance,
+)
 
 # ── Audio / visualizer constants (mirrors viz_matrix.py) ───────────────────
 RATE       = 48000
@@ -147,16 +154,87 @@ class VizWorker(QThread):
                 pass
 
 
+# ── Palette source workers ───────────────────────────────────────────────────
+
+class WPWatchWorker(QThread):
+    palette_ready = pyqtSignal(list)
+
+    def __init__(self):
+        super().__init__()
+        self._running = False
+        self._proc    = None
+
+    def stop(self):
+        self._running = False
+        if self._proc:
+            self._proc.terminate()
+
+    def _fire(self):
+        try:
+            img = load_image(get_current_wallpaper())
+            pal = extract_palette(filter_pixels(image_to_pixels(img)))
+            self.palette_ready.emit([(int(c[0]), int(c[1]), int(c[2])) for c in pal])
+        except Exception as e:
+            print(f'WPWatch: {e}')
+
+    def run(self):
+        self._running = True
+        self._fire()
+        self._proc = subprocess.Popen(
+            ['inotifywait', '-m', '-e', 'modify', str(CAELESTIA_WALLPAPER_PATH)],
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+        )
+        for _ in self._proc.stdout:
+            if not self._running:
+                break
+            self._fire()
+        self._proc.terminate()
+
+
+class AmbientWorker(QThread):
+    palette_ready = pyqtSignal(list)
+
+    def __init__(self):
+        super().__init__()
+        self._running = False
+
+    def stop(self):
+        self._running = False
+
+    def run(self):
+        self._running = True
+        last = None
+        while self._running:
+            try:
+                img = grab_active_monitor()
+                pix = filter_pixels(image_to_pixels(img, size=96))
+                pal = extract_dominant_palette(pix, gamma=1.5)
+                if palette_distance(last, pal) >= 18.0:
+                    last = pal.copy()
+                    self.palette_ready.emit([(int(c[0]), int(c[1]), int(c[2])) for c in pal])
+            except Exception as e:
+                print(f'Ambient: {e}')
+            for _ in range(50):
+                if not self._running:
+                    break
+                time.sleep(0.1)
+
+
 # ── Main window ─────────────────────────────────────────────────────────────
 
 class MainWindow(QMainWindow):
+    _palette_signal = pyqtSignal(list)
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle('M57 RGB Controller')
-        self.palette  = list(DEFAULT_PALETTE)
-        self.worker   = None
-        self.kb       = None
-        self._kb_paths = []   # (path, label) list
+        self.palette      = list(DEFAULT_PALETTE)
+        self.worker       = None
+        self.kb           = None
+        self._kb_paths    = []
+        self.wp_worker    = None
+        self.ambient_worker = None
+        self._palette_signal.connect(self._apply_palette)
 
         self._build_ui()
         self._refresh_kb()
@@ -222,6 +300,35 @@ class MainWindow(QMainWindow):
         line.setFrameShape(QFrame.Shape.HLine)
         line.setFrameShadow(QFrame.Shadow.Sunken)
         root.addWidget(line)
+
+        # ── Palette source ──────────────────────────────────────────────────
+        root.addWidget(QLabel('<b>Palette Source</b>'))
+        src_row = QHBoxLayout()
+        self.btn_shot = QPushButton('Color-Shot')
+        self.btn_shot.setToolTip('One-shot: extract palette from active monitor')
+        self.btn_shot.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.btn_shot.clicked.connect(self._color_shot)
+
+        self.btn_wpwatch = QPushButton('WPWatch')
+        self.btn_wpwatch.setCheckable(True)
+        self.btn_wpwatch.setToolTip('Follow wallpaper changes (Caelestia/Hyprland)')
+        self.btn_wpwatch.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.btn_wpwatch.toggled.connect(self._toggle_wpwatch)
+
+        self.btn_ambient = QPushButton('Ambient')
+        self.btn_ambient.setCheckable(True)
+        self.btn_ambient.setToolTip('Continuously track active monitor colors (~5s interval)')
+        self.btn_ambient.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.btn_ambient.toggled.connect(self._toggle_ambient)
+
+        for btn in (self.btn_shot, self.btn_wpwatch, self.btn_ambient):
+            src_row.addWidget(btn)
+        root.addLayout(src_row)
+
+        line2 = QFrame()
+        line2.setFrameShape(QFrame.Shape.HLine)
+        line2.setFrameShadow(QFrame.Shadow.Sunken)
+        root.addWidget(line2)
 
         # ── Palette editor ──────────────────────────────────────────────────
         pal_header = QHBoxLayout()
@@ -306,14 +413,19 @@ class MainWindow(QMainWindow):
                     break
         self.audio_combo.blockSignals(False)
 
-    def _on_preset(self, name):
-        if name not in PRESETS:
-            return
-        self.palette = list(PRESETS[name])
+    def _apply_palette(self, palette):
+        self.palette = list(palette)
         for i in range(N_LEVELS):
             self._refresh_swatch(i)
         if self.worker and self.worker.isRunning():
             self.worker.set_palette(self.palette)
+        if self.btn_fwviz.isChecked() and self.kb:
+            self.kb.send_palette(self.palette)
+
+    def _on_preset(self, name):
+        if name not in PRESETS:
+            return
+        self._apply_palette(list(PRESETS[name]))
 
     def _refresh_swatch(self, idx):
         r, g, b = self.palette[idx]
@@ -330,9 +442,44 @@ class MainWindow(QMainWindow):
         if not color.isValid():
             return
         self.palette[idx] = (color.red(), color.green(), color.blue())
-        self._refresh_swatch(idx)
-        if self.worker and self.worker.isRunning():
-            self.worker.set_palette(self.palette)
+        self._apply_palette(self.palette)
+
+    def _color_shot(self):
+        def _run():
+            try:
+                img = grab_active_monitor()
+                pix = filter_pixels(image_to_pixels(img, size=96))
+                pal = extract_dominant_palette(pix, gamma=1.5)
+                self._palette_signal.emit([(int(c[0]), int(c[1]), int(c[2])) for c in pal])
+            except Exception as e:
+                print(f'Color-Shot: {e}')
+        threading.Thread(target=_run, daemon=True).start()
+
+    def _toggle_wpwatch(self, checked):
+        if checked:
+            if self.btn_ambient.isChecked():
+                self.btn_ambient.setChecked(False)
+            self.wp_worker = WPWatchWorker()
+            self.wp_worker.palette_ready.connect(self._apply_palette)
+            self.wp_worker.start()
+        else:
+            if self.wp_worker:
+                self.wp_worker.stop()
+                self.wp_worker.wait(2000)
+                self.wp_worker = None
+
+    def _toggle_ambient(self, checked):
+        if checked:
+            if self.btn_wpwatch.isChecked():
+                self.btn_wpwatch.setChecked(False)
+            self.ambient_worker = AmbientWorker()
+            self.ambient_worker.palette_ready.connect(self._apply_palette)
+            self.ambient_worker.start()
+        else:
+            if self.ambient_worker:
+                self.ambient_worker.stop()
+                self.ambient_worker.wait(2000)
+                self.ambient_worker = None
 
     def _on_effect(self, btn):
         if not self.kb:
@@ -367,6 +514,12 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         self._stop_viz()
+        if self.wp_worker:
+            self.wp_worker.stop()
+            self.wp_worker.wait(2000)
+        if self.ambient_worker:
+            self.ambient_worker.stop()
+            self.ambient_worker.wait(2000)
         if self.kb:
             self.kb.close()
         event.accept()
