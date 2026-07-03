@@ -31,18 +31,21 @@ def capture_tiny(scale=CAPTURE_SCALE):
 def sample_zones(img):
     """5 horizontal stripes from center third of image.
     Index 0 = bottom stripe → palette level 0 (low bar).
-    Index 4 = top stripe    → palette level 4 (high bar)."""
+    Index 4 = top stripe    → palette level 4 (high bar).
+    Uses saturation-weighted average so vibrant pixels dominate over dark/grey."""
     w, h = img.size
     arr  = np.asarray(img, dtype=np.float32)
     x0, x1 = w // 3, (2 * w) // 3
     zones = []
     stripe = h // 5
     for i in range(5):
-        # i=0: bottom, i=4: top
         y1 = h - i * stripe
         y0 = max(0, h - (i + 1) * stripe)
         zone = arr[y0:y1, x0:x1].reshape(-1, 3)
-        zones.append(zone.mean(axis=0).astype(np.uint8))
+        sat     = zone.max(axis=1) - zone.min(axis=1)  # per-pixel saturation
+        weights = (sat + 1.0) ** 2                      # vibrant pixels dominate
+        avg = np.average(zone, axis=0, weights=weights)
+        zones.append(avg.astype(np.uint8))
     return np.array(zones, dtype=np.uint8)   # (5, 3)
 
 def pick_palette(zones, gamma=2.2, apply_correction=True):
