@@ -1,6 +1,5 @@
 #include QMK_KEYBOARD_H
 #include "dynamic_lights.h"
-#include "audio_visualizer.h"
 #include "transactions.h"
 #include <string.h>
 
@@ -660,7 +659,6 @@ void keyboard_post_init_user(void) {
 #ifdef RGB_MATRIX_EFFECT_VIALRGB_DIRECT
     transaction_register_rpc(USER_SYNC_RGB_DIRECT, rgb_direct_sync_handler);
 #endif
-    audio_visualizer_register_rpc();
 }
 
 void dynamic_lights_on_mode_enter(void) {
