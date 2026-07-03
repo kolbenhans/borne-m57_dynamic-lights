@@ -51,15 +51,13 @@ def get_active_monitor_geometry():
         f'{monitor["height"]}'
     )
 
-def grab_active_monitor():
+def grab_active_monitor(scale=1.0):
     geometry = get_active_monitor_geometry()
-
-    result = subprocess.run(
-        ["grim", "-g", geometry, "-"],
-        check=True,
-        capture_output=True,
-    )
-
+    cmd = ["grim", "-g", geometry]
+    if scale != 1.0:
+        cmd += ["-s", str(scale)]
+    cmd.append("-")
+    result = subprocess.run(cmd, check=True, capture_output=True)
     return Image.open(BytesIO(result.stdout)).convert("RGB")
 
 def extract_dominant_palette(pixels, count=5, gamma=2.2, apply_correction=True):

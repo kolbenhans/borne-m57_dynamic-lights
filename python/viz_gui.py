@@ -206,15 +206,15 @@ class AmbientWorker(QThread):
         last = None
         while self._running:
             try:
-                img = grab_active_monitor()
-                pix = filter_pixels(image_to_pixels(img, size=96))
+                img = grab_active_monitor(scale=0.25)
+                pix = filter_pixels(image_to_pixels(img, size=48))
                 pal = extract_dominant_palette(pix, gamma=1.5)
                 if palette_distance(last, pal) >= 18.0:
                     last = pal.copy()
                     self.palette_ready.emit([(int(c[0]), int(c[1]), int(c[2])) for c in pal])
             except Exception as e:
                 print(f'Ambient: {e}')
-            for _ in range(50):
+            for _ in range(5):
                 if not self._running:
                     break
                 time.sleep(0.1)
