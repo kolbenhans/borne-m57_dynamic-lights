@@ -1,4 +1,5 @@
 #include "audio_visualizer.h"
+#include "dynamic_lights.h"
 #ifdef SPLIT_KEYBOARD
 #    include "transactions.h"
 #endif
@@ -153,6 +154,15 @@ void raw_hid_receive_kb(uint8_t *data, uint8_t length) {
     switch (data[1]) {
         case 0xA3:
             rgb_matrix_mode_noeeprom(RGB_MATRIX_CUSTOM_m57_viz_frame);
+            break;
+
+        case 0xA4:
+            dynamic_lights_on_mode_enter();
+            rgb_matrix_mode_noeeprom(RGB_MATRIX_CUSTOM_m57_dynamic_lights);
+            break;
+
+        case 0xA5:
+            rgb_matrix_mode_noeeprom(RGB_MATRIX_CUSTOM_m57_audio_visualizer);
             break;
 
         case 0xA1: {

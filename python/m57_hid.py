@@ -51,7 +51,32 @@ class M57:
         dev.open_path(path)
         return dev
 
-    def __init__(self):
+    @staticmethod
+    def list_devices():
+        """Return list of (path, label) for all connectable M57 interfaces."""
+        candidates = hid.enumerate(VID, PID)
+        result, seen = [], set()
+        for info in candidates:
+            if info['usage_page'] == USAGE_PAGE and info['usage'] == USAGE:
+                p = info['path']
+                if p not in seen:
+                    seen.add(p)
+                    label = (info.get('product_string') or 'M57').strip() or 'M57'
+                    result.append((p, label))
+        if not result:
+            for info in candidates:
+                if info.get('interface_number') == 1:
+                    p = info['path']
+                    if p not in seen:
+                        seen.add(p)
+                        label = (info.get('product_string') or 'M57').strip() or 'M57'
+                        result.append((p, label))
+        return result
+
+    def __init__(self, path=None):
+        if path:
+            self.dev = self._open(path)
+            return
         candidates = hid.enumerate(VID, PID)
         for info in candidates:
             if info['usage_page'] == USAGE_PAGE and info['usage'] == USAGE:
@@ -95,6 +120,18 @@ class M57:
         """Switch firmware to m57_viz_frame effect via Raw HID 0x02/0xA3."""
         pkt = bytearray(33)
         pkt[1], pkt[2] = 0x02, 0xA3
+        self.dev.write(bytes(pkt))
+
+    def activate_dynamic_lights(self):
+        """Switch firmware to m57_dynamic_lights (key coloring) via 0x02/0xA4."""
+        pkt = bytearray(33)
+        pkt[1], pkt[2] = 0x02, 0xA4
+        self.dev.write(bytes(pkt))
+
+    def activate_fw_visualizer(self):
+        """Switch firmware to m57_audio_visualizer effect via 0x02/0xA5."""
+        pkt = bytearray(33)
+        pkt[1], pkt[2] = 0x02, 0xA5
         self.dev.write(bytes(pkt))
 
     def send_frame(self, rgb):
