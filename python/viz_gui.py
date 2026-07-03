@@ -20,37 +20,21 @@ from send_palette_from_screen import (
     grab_active_monitor, extract_dominant_palette, palette_distance,
 )
 from ambient_screen import capture_tiny, sample_zones, pick_palette
+from viz_render import (
+    N_BANDS, N_LEVELS,
+    render_bars, render_center, render_waterdrop, WaterdropState,
+)
 
-# ── Audio / visualizer constants (mirrors viz_matrix.py) ───────────────────
-RATE       = 48000
-CHANNELS   = 2
-FPS        = 20
-DECAY      = 15
-AUTO_DECAY = 0.995
-AUTO_FLOOR = 80.0
-AUTO_LEVEL = 0.85
-N_BANDS    = 12
-N_LEVELS   = 5
+# ── Audio constants ─────────────────────────────────────────────────────────
+RATE        = 48000
+CHANNELS    = 2
+FPS         = 20
+DECAY       = 15
+AUTO_DECAY  = 0.995
+AUTO_FLOOR  = 80.0
+AUTO_LEVEL  = 0.85
 CHUNK_BYTES = int(RATE * CHANNELS * 2 / FPS)
 BAND_EDGES  = np.geomspace(60, 12000, N_BANDS + 1)
-
-LED_POS = [
-    (0,12),(16,12),(32,12),(48,12),(64,12),(80,12),
-    (0,25),(16,25),(32,25),(48,25),(64,25),(80,25),(96,25),
-    (0,38),(16,38),(32,38),(48,38),(64,38),(80,38),(96,38),
-    (0,51),(16,51),(32,51),(48,51),(64,51),(80,51),
-    (32,63),(48,63),(64,63),
-    (128,12),(144,12),(160,12),(178,12),(194,12),(210,12),
-    (112,25),(128,25),(144,25),(160,25),(178,25),(194,25),(210,25),
-    (112,38),(128,38),(144,38),(160,38),(178,38),(194,38),(210,38),
-    (128,51),(144,51),(160,51),(178,51),(194,51),(210,51),
-    (112,63),(128,63),(144,63),
-]
-LED_MAP = [
-    (min(x * N_BANDS // 224, N_BANDS - 1),
-     (N_LEVELS - 1) - min(y * N_LEVELS // 64, N_LEVELS - 1))
-    for x, y in LED_POS
-]
 
 PRESETS = {
     'Winamp': [(0,255,0),(160,255,0),(255,220,0),(255,80,0),(255,0,0)],
@@ -94,17 +78,25 @@ class VizWorker(QThread):
 
     def __init__(self, kb, monitor):
         super().__init__()
-        self._kb      = kb
-        self._monitor = monitor
-        self._running = False
-        self._palette = list(DEFAULT_PALETTE)
-        self._lock    = threading.Lock()
-        self._display  = np.zeros(N_BANDS, dtype=np.float32)
-        self._auto_max = np.ones(N_BANDS,  dtype=np.float32) * AUTO_FLOOR
+        self._kb           = kb
+        self._monitor      = monitor
+        self._running      = False
+        self._palette      = list(DEFAULT_PALETTE)
+        self._render_mode  = 0
+        self._lock         = threading.Lock()
+        self._display      = np.zeros(N_BANDS, dtype=np.float32)
+        self._auto_max     = np.ones(N_BANDS,  dtype=np.float32) * AUTO_FLOOR
+        self._drops        = WaterdropState()
 
     def set_palette(self, palette):
         with self._lock:
             self._palette = list(palette)
+
+    def set_render_mode(self, mode):
+        with self._lock:
+            self._render_mode = mode
+            if mode == 4:
+                self._drops = WaterdropState()
 
     def stop(self):
         self._running = False
@@ -122,14 +114,18 @@ class VizWorker(QThread):
         self._auto_max[:] = np.maximum(self._auto_max, AUTO_FLOOR)
         normalized        = np.clip(raw / self._auto_max * 255 * AUTO_LEVEL, 0, 255)
         self._display[:]  = np.maximum(normalized, self._display - DECAY)
-        heights = np.minimum((self._display * (N_LEVELS + 1) / 256).astype(int), N_LEVELS)
         with self._lock:
-            pal = list(self._palette)
-        frame = [(0, 0, 0)] * 58
-        for led, (band, level) in enumerate(LED_MAP):
-            if level < heights[band]:
-                frame[led] = pal[level]
-        return frame
+            pal  = list(self._palette)
+            mode = self._render_mode
+        if mode == 1:
+            return render_bars(self._display, pal, outline=True)
+        if mode == 2:
+            return render_center(self._display, pal, kitt=False)
+        if mode == 3:
+            return render_center(self._display, pal, kitt=True)
+        if mode == 4:
+            return render_waterdrop(self._display, pal, self._drops)
+        return render_bars(self._display, pal, outline=False)
 
     def run(self):
         self._running = True
@@ -284,9 +280,8 @@ class MainWindow(QMainWindow):
         root.addWidget(QLabel('<b>Effect</b>'))
         eff_row = QHBoxLayout()
         self.btn_key   = QPushButton('Key Lighting')
-        self.btn_fwviz = QPushButton('FW Visualizer')
         self.btn_pyviz = QPushButton('Python Viz')
-        for btn in (self.btn_key, self.btn_fwviz, self.btn_pyviz):
+        for btn in (self.btn_key, self.btn_pyviz):
             btn.setCheckable(True)
             btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             eff_row.addWidget(btn)
@@ -295,9 +290,26 @@ class MainWindow(QMainWindow):
         grp = QButtonGroup(self)
         grp.setExclusive(True)
         grp.addButton(self.btn_key)
-        grp.addButton(self.btn_fwviz)
         grp.addButton(self.btn_pyviz)
         grp.buttonClicked.connect(self._on_effect)
+
+        # ── Render mode buttons ─────────────────────────────────────────────
+        root.addWidget(QLabel('<b>Render Mode</b>'))
+        mode_row = QHBoxLayout()
+        self._mode_btns = []
+        for label in ('Bars', 'Dots', 'Center', 'Kitt', 'Waterdrop'):
+            btn = QPushButton(label)
+            btn.setCheckable(True)
+            btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            mode_row.addWidget(btn)
+            self._mode_btns.append(btn)
+        self._mode_btns[0].setChecked(True)
+        mode_grp = QButtonGroup(self)
+        mode_grp.setExclusive(True)
+        for i, btn in enumerate(self._mode_btns):
+            mode_grp.addButton(btn, i)
+        mode_grp.idClicked.connect(self._on_render_mode)
+        root.addLayout(mode_row)
 
         # ── Divider ─────────────────────────────────────────────────────────
         line = QFrame()
@@ -423,8 +435,6 @@ class MainWindow(QMainWindow):
             self._refresh_swatch(i)
         if self.worker and self.worker.isRunning():
             self.worker.set_palette(self.palette)
-        if self.btn_fwviz.isChecked() and self.kb:
-            self.kb.send_palette(self.palette)
 
     def _on_preset(self, name):
         if name not in PRESETS:
@@ -485,6 +495,10 @@ class MainWindow(QMainWindow):
                 self.ambient_worker.wait(2000)
                 self.ambient_worker = None
 
+    def _on_render_mode(self, mode_id):
+        if self.worker and self.worker.isRunning():
+            self.worker.set_render_mode(mode_id)
+
     def _on_effect(self, btn):
         if not self.kb:
             return
@@ -492,8 +506,6 @@ class MainWindow(QMainWindow):
             self._stop_viz()
         if btn is self.btn_key:
             self.kb.activate_dynamic_lights()
-        elif btn is self.btn_fwviz:
-            self.kb.activate_fw_visualizer()
         elif btn is self.btn_pyviz:
             self.kb.activate_viz_frame()
             self._start_viz()
@@ -505,8 +517,10 @@ class MainWindow(QMainWindow):
         monitor = self.audio_combo.currentData()
         if not monitor:
             return
+        mode = next((i for i, b in enumerate(self._mode_btns) if b.isChecked()), 0)
         self.worker = VizWorker(self.kb, monitor)
         self.worker.set_palette(self.palette)
+        self.worker.set_render_mode(mode)
         self.worker.error.connect(lambda msg: print(f'worker error: {msg}'))
         self.worker.start()
 
