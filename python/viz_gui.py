@@ -173,7 +173,7 @@ class WPWatchWorker(QThread):
     def _fire(self):
         try:
             img = load_image(get_current_wallpaper())
-            pal = extract_palette(filter_pixels(image_to_pixels(img)))
+            pal = pick_palette(sample_zones(img))
             self.palette_ready.emit([(int(c[0]), int(c[1]), int(c[2])) for c in pal])
         except Exception as e:
             print(f'WPWatch: {e}')
@@ -208,7 +208,7 @@ class AmbientWorker(QThread):
         while self._running:
             t0 = time.monotonic()
             try:
-                img = capture_tiny()
+                img = capture_tiny(scale=0.15)
                 pal = pick_palette(sample_zones(img))
                 if last is None or palette_distance(last, pal) >= 8.0:
                     last = pal.copy()

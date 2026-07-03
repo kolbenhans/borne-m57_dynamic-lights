@@ -20,41 +20,29 @@ PALETTE_SIZE = 5
 # ponytail: grim scale 0.05 → ~100×56px at 1080p, fast enough for ambient
 CAPTURE_SCALE = 0.05
 
-# Sample positions: dice-5 pattern (cx, cy as fractions of image size)
-#   ●       ●
-#       ●
-#   ●       ●
-DICE_5_POSITIONS = [
-    (0.33, 0.33),  # top-left
-    (0.67, 0.33),  # top-right
-    (0.50, 0.50),  # center
-    (0.33, 0.67),  # bottom-left
-    (0.67, 0.67),  # bottom-right
-]
-# Each zone samples a square region of this fraction of image size around the point
-ZONE_RADIUS = 0.10
-
-def capture_tiny():
+def capture_tiny(scale=CAPTURE_SCALE):
     result = subprocess.run(
-        ["grim", "-s", str(CAPTURE_SCALE), "-"],
+        ["grim", "-s", str(scale), "-"],
         capture_output=True,
         check=True,
     )
     return Image.open(BytesIO(result.stdout)).convert("RGB")
 
 def sample_zones(img):
-    w, h  = img.size
-    arr   = np.asarray(img, dtype=np.float32)
+    """5 horizontal stripes from center third of image.
+    Index 0 = bottom stripe → palette level 0 (low bar).
+    Index 4 = top stripe    → palette level 4 (high bar)."""
+    w, h = img.size
+    arr  = np.asarray(img, dtype=np.float32)
+    x0, x1 = w // 3, (2 * w) // 3
     zones = []
-
-    for cx_frac, cy_frac in DICE_5_POSITIONS:
-        cx, cy = int(cx_frac * w), int(cy_frac * h)
-        rx, ry = max(1, int(ZONE_RADIUS * w)), max(1, int(ZONE_RADIUS * h))
-        x0, x1 = max(0, cx - rx), min(w, cx + rx)
-        y0, y1 = max(0, cy - ry), min(h, cy + ry)
+    stripe = h // 5
+    for i in range(5):
+        # i=0: bottom, i=4: top
+        y1 = h - i * stripe
+        y0 = max(0, h - (i + 1) * stripe)
         zone = arr[y0:y1, x0:x1].reshape(-1, 3)
         zones.append(zone.mean(axis=0).astype(np.uint8))
-
     return np.array(zones, dtype=np.uint8)   # (5, 3)
 
 def pick_palette(zones, gamma=2.2, apply_correction=True):
