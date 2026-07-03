@@ -19,6 +19,7 @@ from send_palette_from_image import (
 from send_palette_from_screen import (
     grab_active_monitor, extract_dominant_palette, palette_distance,
 )
+from ambient_screen import capture_tiny, sample_zones, pick_palette
 
 # ── Audio / visualizer constants (mirrors viz_matrix.py) ───────────────────
 RATE       = 48000
@@ -205,19 +206,22 @@ class AmbientWorker(QThread):
         self._running = True
         last = None
         while self._running:
+            t0 = time.monotonic()
             try:
-                img = grab_active_monitor(scale=0.25)
-                pix = filter_pixels(image_to_pixels(img, size=48))
-                pal = extract_dominant_palette(pix, gamma=1.5)
-                if palette_distance(last, pal) >= 18.0:
+                img = capture_tiny()
+                pal = pick_palette(sample_zones(img))
+                if last is None or palette_distance(last, pal) >= 8.0:
                     last = pal.copy()
                     self.palette_ready.emit([(int(c[0]), int(c[1]), int(c[2])) for c in pal])
             except Exception as e:
                 print(f'Ambient: {e}')
-            for _ in range(5):
-                if not self._running:
-                    break
-                time.sleep(0.1)
+            remaining = 0.5 - (time.monotonic() - t0)
+            if remaining > 0:
+                # sleep in small chunks for responsive stop
+                for _ in range(int(remaining / 0.05)):
+                    if not self._running:
+                        break
+                    time.sleep(0.05)
 
 
 # ── Main window ─────────────────────────────────────────────────────────────
