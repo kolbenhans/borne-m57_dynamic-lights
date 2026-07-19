@@ -36,11 +36,22 @@ Both halves must be flashed individually.
 
 ### If a firmware based on this repository is already installed
 
+#### Option 1: Bootmagic (hold a key while connecting USB)
+
+Works on any firmware built from this repo, no `QK_BOOT` key assignment required:
+
+* **Left half**: hold `ESC` (top-left key) while plugging in USB.
+* **Right half**: hold `6` (leftmost key of the top row) while plugging in USB.
+
+Only hold the key on whichever half you're actually connecting — not both at once.
+
+#### Option 2: QK_BOOT
+
 The firmware supports the standard QMK `QK_BOOT` keycode.
 
 If a key has been assigned to `QK_BOOT` (for example through Vial), pressing that key will immediately reboot the keyboard into the UF2 bootloader.
 
-The keyboard should then appear as a removable USB storage device and can be updated by copying the generated `.uf2` file.
+Either option makes the keyboard appear as a removable USB storage device, which can be updated by copying the generated `.uf2` file.
 
 ---
 
