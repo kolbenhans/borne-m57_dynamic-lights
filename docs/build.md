@@ -210,7 +210,7 @@ before flashing.
 
 Dynamic lighting features:
 
-* Implemented as a standalone custom RGB matrix effect (`m57_dynamic_lights`)
+* Implemented as a standalone custom RGB matrix effect (`dynamic_lights`)
 * Active by default on startup
 * Re-enterable via `KEYBIND_USER01` (`0x7E01`) in the keymap
 * All other RGB Matrix modes remain fully available

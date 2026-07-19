@@ -2,7 +2,7 @@
 
 #define VIAL_KEYBOARD_UID {0x89, 0x36, 0x2A, 0xC7, 0xFA, 0xD8, 0x89, 0x45}
 
-#define RGB_MATRIX_DEFAULT_MODE RGB_MATRIX_CUSTOM_m57_dynamic_lights
+#define RGB_MATRIX_DEFAULT_MODE RGB_MATRIX_CUSTOM_dynamic_lights
 
 // Split sync buffer large enough for 29 LEDs × 3 bytes HSV (87 bytes)
 #define RPC_M2S_BUFFER_SIZE 96

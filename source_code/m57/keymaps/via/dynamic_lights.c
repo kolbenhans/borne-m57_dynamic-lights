@@ -1,5 +1,6 @@
 #include QMK_KEYBOARD_H
 #include "dynamic_lights.h"
+#include "entry_wave.h"
 #include "transactions.h"
 #include <string.h>
 
@@ -644,7 +645,8 @@ static void rgb_direct_sync_handler(uint8_t in_buflen, const void *in_data,
     (void)out_buflen;
     (void)out_data;
     if (in_buflen != SYNC_HALF_SIZE * sizeof(HSV) || in_data == NULL) return;
-    memcpy(&g_direct_mode_colors[SYNC_HALF_SIZE], in_data, in_buflen);
+    uint8_t local_offset = is_keyboard_left() ? 0 : SYNC_HALF_SIZE;
+    memcpy(&g_direct_mode_colors[local_offset], in_data, in_buflen);
     direct_mode_active = true;
     direct_mode_timer  = timer_read32();
 }
@@ -659,6 +661,7 @@ void keyboard_post_init_user(void) {
 #ifdef RGB_MATRIX_EFFECT_VIALRGB_DIRECT
     transaction_register_rpc(USER_SYNC_RGB_DIRECT, rgb_direct_sync_handler);
 #endif
+    entry_wave_register_rpc();
 }
 
 void dynamic_lights_on_mode_enter(void) {
@@ -687,19 +690,23 @@ void housekeeping_task_user(void) {
     if (!is_keyboard_master()) return;
     uint8_t mode = rgb_matrix_get_mode();
     if (mode != RGB_MATRIX_VIALRGB_DIRECT &&
-        mode != RGB_MATRIX_CUSTOM_m57_viz_frame) return;
+        mode != RGB_MATRIX_CUSTOM_viz_frame) return;
 
     static uint32_t last_sync = 0;
     if (timer_elapsed32(last_sync) < 20) return;
     last_sync = timer_read32();
 
+    // LED indices 0..SYNC_HALF_SIZE-1 are always the physical left half
+    // (fixed by g_led_config) — is_keyboard_left() picks the right offset
+    // regardless of which physical side is master.
+    uint8_t remote_offset = is_keyboard_left() ? SYNC_HALF_SIZE : 0;
     transaction_rpc_send(USER_SYNC_RGB_DIRECT,
                          SYNC_HALF_SIZE * sizeof(HSV),
-                         &g_direct_mode_colors[SYNC_HALF_SIZE]);
+                         &g_direct_mode_colors[remote_offset]);
 
     // RGB_MATRIX_SPLIT caps led_max at 29 on master, so effects never return false
     // and rgb_task_state never reaches FLUSHING -> ws2812_flush() never called.
-    // Only needed for VialRGB direct mode; m57_viz_frame goes through normal pipeline.
+    // Only needed for VialRGB direct mode; viz_frame goes through normal pipeline.
     if (mode == RGB_MATRIX_VIALRGB_DIRECT) {
         rgb_matrix_update_pwm_buffers();
     }

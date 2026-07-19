@@ -42,7 +42,7 @@ source_code/m57/keymaps/via/dynamic_lights.c
 source_code/m57/keymaps/via/rgb_matrix_user.inc
 ```
 
-Dynamic lighting is implemented as a standalone custom RGB matrix effect (`m57_dynamic_lights`).
+Dynamic lighting is implemented as a standalone custom RGB matrix effect (`dynamic_lights`).
 
 It is independent of all built-in RGB matrix effects and does not overlay or conflict with them.
 
@@ -82,6 +82,42 @@ A startup comet animation is displayed when entering the dynamic lighting mode.
 The animation traverses all LEDs based on their physical coordinates in a snake pattern.
 
 The master half triggers the animation on the slave half via `USER_DYNAMIC_LIGHTS_STARTUP` split RPC, so both halves animate in sync.
+
+---
+
+## viz_frame (host-driven visualizer)
+
+Implementation:
+
+```text
+source_code/m57/keymaps/via/entry_wave.c
+source_code/m57/keymaps/via/rgb_matrix_user.inc
+```
+
+All rendering (FFT, palette, frame composition) happens host-side in
+Python (see the `python/` submodule / [`viz-frame-tools`](https://github.com/kolbenhans/viz-frame-tools));
+the firmware only reads `g_direct_mode_colors[]` (filled via Raw HID
+FASTSET) into the LED buffer.
+
+`g_direct_mode_colors[]` only reaches the master half over USB — the slave
+half's copy is pushed via a dedicated split RPC (`USER_SYNC_RGB_DIRECT`),
+independent of `dynamic_lights`'s own sync. Two gotchas found while
+building this:
+
+* **RPC buffer size.** QMK's default `RPC_M2S_BUFFER_SIZE` is 32 bytes.
+  m57's half-buffer push is `29 LEDs × 3 bytes (HSV) = 87 bytes` — too big
+  for the default, and `transaction_rpc_send()` silently returns `false`
+  when the payload exceeds the configured size (no error, no crash — the
+  slave half just never lights up). Fixed by setting `RPC_M2S_BUFFER_SIZE 96`
+  in `config.h`.
+* **Master/slave orientation.** The sync must branch on `is_keyboard_left()`
+  rather than always assuming the left half is master — otherwise plugging
+  USB into the right half instead silently breaks the slave sync.
+
+The entry wave (`entry_wave_trigger()`, a short diagonal color sweep on
+switching into viz_frame) uses the same push-to-other-half pattern via
+`USER_ENTRY_WAVE_STARTUP`, so it plays on both halves regardless of which
+is master.
 
 ---
 

@@ -1,5 +1,6 @@
 #include QMK_KEYBOARD_H
 #include "dynamic_lights.h"
+#include "entry_wave.h"
 
 const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
     /*
@@ -58,20 +59,13 @@ const uint16_t PROGMEM encoder_map[][NUM_ENCODERS][2] = {
 #endif
 
 #define KEYBIND_USER01 0x7E01
-#define KEYBIND_USER05 0x7E05
 
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {
     switch (keycode) {
         case KEYBIND_USER01:
             if (record->event.pressed) {
                 dynamic_lights_on_mode_enter();
-                rgb_matrix_mode_noeeprom(RGB_MATRIX_CUSTOM_m57_dynamic_lights);
-            }
-            return false;
-
-        case KEYBIND_USER05:
-            if (record->event.pressed) {
-                rgb_matrix_mode_noeeprom(RGB_MATRIX_CUSTOM_m57_viz_frame);
+                rgb_matrix_mode_noeeprom(RGB_MATRIX_CUSTOM_dynamic_lights);
             }
             return false;
     }
